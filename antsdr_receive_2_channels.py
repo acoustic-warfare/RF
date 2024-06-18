@@ -1,5 +1,3 @@
-import sys
-sys.path.append('/usr/local/lib/python3/dist-packages')
 import uhd
 import numpy as np
 import scipy.fft as fft
