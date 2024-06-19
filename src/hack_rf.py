@@ -13,7 +13,6 @@ def init_hackrf():
     hrf.center_freq = 0
     return hrf
 
-
 hrf = init_hackrf()
 
 # Set up plot
