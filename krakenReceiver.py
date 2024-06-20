@@ -104,7 +104,9 @@ class KrakenReceiver():
         for theta in range(theta_coverage):
             theta_rad = np.deg2rad(theta)
             scanning_vector = np.exp(1j * 2 * np.pi * distance * 
-                             np.sin(theta_rad) * np.arange(self.num_devices))    
+                             np.sin(theta_rad) * np.arange(self.num_devices)) 
+
+            #print(scanning_vector)   
             #scanning_vector /= np.linalg.norm(scanning_vector)
             scanning_vectors[:, theta] = scanning_vector
 
