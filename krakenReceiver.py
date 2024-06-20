@@ -109,6 +109,18 @@ class KrakenReceiver():
             scanning_vectors[:, theta] = scanning_vector
 
         return scanning_vectors
+    
+
+    def _create_scanning_vectors2(self, wave_length, theta_coverage):
+        
+        scanning_vectors = np.zeros((self.num_devices, theta_coverage), dtype=np.complex64)
+        for theta in range(theta_coverage):
+            theta_rad = np.deg2rad(theta)
+            scanning_vector = np.exp(1j * 2 * np.pi * np.outer(np.arange(self.num_devices), np.sin(theta_rad)) /wave_length)   
+            #scanning_vector /= np.linalg.norm(scanning_vector)
+            #scanning_vectors[:, theta] = scanning_vector
+
+        return scanning_vectors
 
 
     def doa_music(self):
@@ -120,9 +132,10 @@ class KrakenReceiver():
         # regularization_parameter = 1e1
         # spatial_corr_matrix = spatial_corr_matrix + regularization_parameter * np.eye(spatial_corr_matrix.shape[0])
 
+        wave_length = 0.6909
         distance_m = 0.25
-        distance = distance_m/0.6909
-        scanning_vectors = self._create_scanning_vectors(distance, 180)
+        distance = distance_m/wave_length
+        scanning_vectors = self._create_scanning_vectors2(wave_length, 180)
 
         #print(scanning_vectors.shape)
         #print(spatial_corr_matrix.shape)
@@ -167,7 +180,7 @@ if __name__ == "__main__":
     bandwidth =  2e5 #1.024e6
     gain = 40
     kraken = KrakenReceiver(center_freq, num_samples, 
-                           sample_rate, bandwidth, gain, num_devices=3)
+                           sample_rate, bandwidth, gain, num_devices=2)
     while True:
         kraken.read_streams()
         kraken.doa_music()
