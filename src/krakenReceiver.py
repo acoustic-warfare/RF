@@ -2,7 +2,8 @@ import numpy as np
 import SoapySDR as sp
 from SoapySDR import *
 from scipy.fft import fft
-#from scipy.signal import signal 
+from scipy.signal import butter, sosfilt, cheby2, filtfilt
+from matplotlib.animation import FuncAnimation
 import matplotlib.pyplot as plt
 import time
 import pyargus.directionEstimation as pa
@@ -17,7 +18,7 @@ class KrakenReceiver():
         self.sample_rate = sample_rate
         self.bandwidth = bandwidth
         self.gain = gain
-        self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64) #signals([self.center_freq], [50] ,self.num_devices, self.num_samples) #
+        self.buffer = signals([self.center_freq], [0] ,self.num_devices, self.num_samples) #np.zeros((self.num_devices, num_samples), dtype=np.complex64) #
         self.devices, self.streams = self._setup_devices()
         self.x = x * antenna_distance
         self.y = y
@@ -54,6 +55,7 @@ class KrakenReceiver():
             del device
 
     def _read_stream(self, device, time):
+        
         sr = self.devices[device].readStream(
             self.streams[device], [self.buffer[device]], self.num_samples, 0, time)
         
@@ -66,6 +68,19 @@ class KrakenReceiver():
             futures = [executor.submit(self._read_stream, i, start_time_ns) for i in range(self.num_devices)]
             for future in futures:
                 future.result()
+
+        fc = self.center_freq
+        fs = 4*fc
+        fn = 0.5*fs
+        bandwidth = 0.1*fc
+        wn = [(0.0000001*fc) /fn, (bandwidth/2) / fn]
+        print(wn)
+        sos = butter(4, wn, btype='bandpass', output='sos')
+        self.buffer = sosfilt(sos, self.buffer)
+        
+        # for i in range(self.num_devices):
+        #     channel_max = np.max(self.buffer[i])
+        #     self.buffer[i][np.abs(self.buffer[i]) < channel_max*0.95] = 0
 
     def plot_fft(self):
 
@@ -103,7 +118,7 @@ class KrakenReceiver():
 
     def music(self):
         spatial_corr_matrix = pa.corr_matrix_estimate(self.buffer.T)
-        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y,np.arange(0,180))
+        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0,180))
         doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=1)
 
         return doa
@@ -117,7 +132,6 @@ class KrakenReceiver():
 
     def capon(self):
         spatial_corr_matrix = pa.corr_matrix_estimate(self.buffer.T)
-        x *= antenna_distance
         scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0,180))
         doa = pa.DOA_Capon(spatial_corr_matrix,scanning_vectors)
 
@@ -136,8 +150,6 @@ class KrakenReceiver():
         doa = pa.DOA_LPM(spatial_corr_matrix,scanning_vectors, element_select)
 
         return doa
-
-    
 
 def get_device_info():
         available_devices = sp.Device.enumerate()
@@ -162,17 +174,36 @@ def get_device_info():
 
 def signals(frequencies, angles, num_sensors, num_snapshots, wavelength=1.0, noise_power=1e-3):
 
-    antenna_distance_m = 0.25
+    antenna_distance_m = 0.35
     sensor_positions = np.array([0,1,2]) * antenna_distance_m
     signals = np.zeros((num_sensors, num_snapshots), dtype=complex)
-    
+    frequency_offset = frequencies[0]
+
+
     for f, angle in zip(frequencies, angles):
-        signal = np.exp(1j * 2 * np.pi * f * np.arange(num_snapshots) / num_snapshots)
+        f_cal = f - frequency_offset
+        signal = np.exp(1j * 2 * np.pi * f_cal * np.arange(num_snapshots) / num_snapshots)
         steering_vector = np.exp(1j * 2 * np.pi * sensor_positions[:, np.newaxis] * np.sin(np.radians(angle)) / wavelength)
         signals += steering_vector @ signal[np.newaxis, :]
     
     noise = np.sqrt(noise_power) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
-    return signals + noise
+    return signals + 1000 * noise
+
+def init():
+    line.set_data([], [])
+    axes.set_xlim(0,179)  
+    axes.set_ylim(0, 1)
+    
+def update(frame):
+    kraken.buffer = signals([kraken.center_freq], [180] ,kraken.num_devices, kraken.num_samples)
+    kraken.read_streams()
+    doa_data = kraken.music()
+
+    doa_data = np.divide(np.abs(doa_data),np.max(np.abs(doa_data)))
+
+    line.set_data(np.linspace(0,179,180), doa_data)
+
+    return line,
 
 if __name__ == "__main__":
     num_samples = 256*1024
@@ -180,18 +211,30 @@ if __name__ == "__main__":
     center_freq = 433e6
     bandwidth =  2e5 #1.024e6
     gain = 40
-    y = [0,0,0]
-    x = [0,1,2]
-    antenna_distance = 0.25
+    y = np.array([0,0,0])
+    x = np.array([0,1,2])
+    antenna_distance = 0.35
     kraken = KrakenReceiver(center_freq, num_samples, 
-                           sample_rate, bandwidth, gain, x, y, antenna_distance, num_devices=3)
-    while True:
-        kraken.read_streams()
-        kraken.plot_fft()
-        doa_data = kraken.music(x,y,antenna_distance)
-        pa.DOA_plot(doa_data, np.linspace(0, 179, 180)) 
-        plt.show()
-    #kraken.read_streams()   
-    #kraken.plot_fft()
-    #get_device_info()
+                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3)
+
+    # while True:
+    #     kraken.read_streams()
+    #     kraken.plot_fft()
+    #     doa_data = kraken.music()
+    #     pa.DOA_plot(doa_data, np.linspace(0, 179, 180)) 
+    #     plt.show()
+    #     kraken.buffer = signals([kraken.center_freq], [180] ,kraken.num_devices, kraken.num_samples)
+
+    fig, axes = plt.subplots()
+
+    (line,) = axes.plot([],[])
+
+    axes.set_title('Direction of Arrival Estimation', fontsize=16)
+    axes.set_xlabel('Incident Angle [deg]')
+    axes.set_ylabel('Amplitude')
+    plt.grid(True)
+
+    ani = FuncAnimation(fig, update, init_func=init, frames=100, interval=500, blit=False)
+
+    plt.show()
   
