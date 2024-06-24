@@ -9,18 +9,18 @@ import pyargus.directionEstimation as pa
 
 from concurrent.futures import ThreadPoolExecutor
 
-#signals([433e6], [30] ,self.num_devices, self.num_samples)#
-
 class KrakenReceiver():
-    def __init__(self, center_freq, num_samples, sample_rate, bandwidth, gain, num_devices=5):
+    def __init__(self, center_freq, num_samples, sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=5):
         self.num_devices = num_devices
         self.center_freq = center_freq
         self.num_samples = num_samples
         self.sample_rate = sample_rate
         self.bandwidth = bandwidth
         self.gain = gain
-        self.buffer = signals([self.center_freq], [90,45] ,self.num_devices, self.num_samples)#np.zeros((self.num_devices, num_samples), dtype=np.complex64)
+        self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64) #signals([self.center_freq], [50] ,self.num_devices, self.num_samples) #
         self.devices, self.streams = self._setup_devices()
+        self.x = x * antenna_distance
+        self.y = y
 
     def _setup_device(self, device_args):
         device = sp.Device(device_args) 
@@ -47,25 +47,25 @@ class KrakenReceiver():
 
         return devices, streams
 
-    # def close_streams(self):
-    #     for i, device in enumerate(self.devices):
-    #         device.deactivateStream(self.streams[i])
-    #         device.closeStream(self.streams[i])
-    #         del device
+    def close_streams(self):
+        for i, device in enumerate(self.devices):
+            device.deactivateStream(self.streams[i])
+            device.closeStream(self.streams[i])
+            del device
 
-    # def _read_stream(self, device, time):
-    #     sr = self.devices[device].readStream(
-    #         self.streams[device], [self.buffer[device]], self.num_samples, 0, time)
+    def _read_stream(self, device, time):
+        sr = self.devices[device].readStream(
+            self.streams[device], [self.buffer[device]], self.num_samples, 0, time)
         
-    #     #print(f"Device {device}: \n Samples = {sr.ret} \n Timestamp = {sr.timeNs}\n Flag = {sr.flags}\n")
+        #print(f"Device {device}: \n Samples = {sr.ret} \n Timestamp = {sr.timeNs}\n Flag = {sr.flags}\n")
 
-    # def read_streams(self):
-    #     current_time_ns = int(time.time() * 1e9)
-    #     start_time_ns = int(current_time_ns + 5e9)
-    #     with ThreadPoolExecutor(max_workers=self.num_devices) as executor:
-    #         futures = [executor.submit(self._read_stream, i, start_time_ns) for i in range(self.num_devices)]
-    #         for future in futures:
-    #             future.result()
+    def read_streams(self):
+        current_time_ns = int(time.time() * 1e9)
+        start_time_ns = int(current_time_ns + 5e9)
+        with ThreadPoolExecutor(max_workers=self.num_devices) as executor:
+            futures = [executor.submit(self._read_stream, i, start_time_ns) for i in range(self.num_devices)]
+            for future in futures:
+                future.result()
 
     def plot_fft(self):
 
@@ -101,100 +101,45 @@ class KrakenReceiver():
         plt.tight_layout()
         plt.show()
 
-    def _create_scanning_vectors(self, x, y, theta_coverage, offset=0):
-        
-        scanning_vectors = np.zeros((self.num_devices, theta_coverage), dtype=np.complex64)
-        for theta in range(theta_coverage):
-            theta_rad = np.deg2rad(theta)
-            scanning_vectors[:, theta] = np.exp(
-                1j * 2 * np.pi * (x * np.cos(theta_rad + offset) + y * np.sin(theta_rad + offset)))
-
-        return scanning_vectors
-    
-
     def music(self):
-
         spatial_corr_matrix = pa.corr_matrix_estimate(self.buffer.T)
+        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y,np.arange(0,180))
+        doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=1)
 
-        #wave_length = 0.6909
-        antenna_distance_m = 0.25
-        
-        x = np.array([0,1,2]) * antenna_distance_m
-        y = np.array([0,0,0])
-        scanning_vectors = self._create_scanning_vectors(x, y, 360)
-
-        # print("\n\n")
-
-        # eigvals, _ = np.linalg.eig(spatial_corr_matrix)
-        # print("Eigenvalues of the spatial correlation matrix:", eigvals)
-        # cond_number = np.linalg.cond(spatial_corr_matrix)
-        # print("Condition Number:", cond_number)
-
-        # print("\n\n")
-
-        # #Regularize the correlation matrix
-        # regularization_parameter = 1e3
-        # spatial_corr_matrix = spatial_corr_matrix + regularization_parameter * np.eye(spatial_corr_matrix.shape[0])
-
-        # eigvals, _ = np.linalg.eig(spatial_corr_matrix)
-        # print("Eigenvalues of the spatial correlation matrix:", eigvals)
-        # cond_number = np.linalg.cond(spatial_corr_matrix)
-        # print("Condition Number:", cond_number)
-
-        # print("\n\n")
-
-        doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, self.num_devices)
-
-        print(doa)
+        return doa
 
     def mem(self):
         spatial_corr_matrix = pa.corr_matrix_estimate(self.buffer.T)
-        antenna_distance_m = 0.25
-        x = np.array([0,1,2,3,4]) * antenna_distance_m
-        y = np.array([0,0,0,0,0])
-        scanning_vectors = self._create_scanning_vectors(x, y, 180)
-
+        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0,180))
         doa = pa.DOA_MEM(spatial_corr_matrix,scanning_vectors)
+
         return doa
 
     def capon(self):
-        
         spatial_corr_matrix = pa.corr_matrix_estimate(self.buffer.T)
-        antenna_distance_m = 0.25
-        x = np.array([0,1,2,3,4]) * antenna_distance_m
-        y = np.array([0,0,0,0,0])
-        scanning_vectors = self._create_scanning_vectors(x, y, 180)
-
+        x *= antenna_distance
+        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0,180))
         doa = pa.DOA_Capon(spatial_corr_matrix,scanning_vectors)
+
         return doa
 
     def bartlett(self):
         spatial_corr_matrix = pa.corr_matrix_estimate(self.buffer.T)
-        antenna_distance_m = 0.25
-        x = np.array([0,1,2,3,4]) * antenna_distance_m
-        y = np.array([0,0,0,0,0])
-        scanning_vectors = self._create_scanning_vectors(x, y, 180)
+        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0,180))
+        doa = pa.DOA_Bartlett(spatial_corr_matrix,scanning_vectors)
 
-        doa = pa.DOA_Capon(spatial_corr_matrix,scanning_vectors)
         return doa
 
-    def lpm(self):
+    def lpm(self, element_select):
         spatial_corr_matrix = pa.corr_matrix_estimate(self.buffer.T)
+        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0,180))
+        doa = pa.DOA_LPM(spatial_corr_matrix,scanning_vectors, element_select)
 
-        print(spatial_corr_matrix)
-
-        antenna_distance_m = 0.25
-        x = np.array([0,1,2,3,4]) * antenna_distance_m
-        y = np.array([0,0,0,0,0])
-        scanning_vectors = self._create_scanning_vectors(x, y, 180)
-
-        doa = pa.DOA_LPM(spatial_corr_matrix,scanning_vectors, 2)
-        return(doa)
+        return doa
 
     
 
 def get_device_info():
-        #Enumerate devices to get their arguments including serial numbers
         available_devices = sp.Device.enumerate()
         device_info_list = []
 
@@ -217,7 +162,8 @@ def get_device_info():
 
 def signals(frequencies, angles, num_sensors, num_snapshots, wavelength=1.0, noise_power=1e-3):
 
-    sensor_positions = np.arange(num_sensors)
+    antenna_distance_m = 0.25
+    sensor_positions = np.array([0,1,2]) * antenna_distance_m
     signals = np.zeros((num_sensors, num_snapshots), dtype=complex)
     
     for f, angle in zip(frequencies, angles):
@@ -234,13 +180,16 @@ if __name__ == "__main__":
     center_freq = 433e6
     bandwidth =  2e5 #1.024e6
     gain = 40
+    y = [0,0,0]
+    x = [0,1,2]
+    antenna_distance = 0.25
     kraken = KrakenReceiver(center_freq, num_samples, 
-                           sample_rate, bandwidth, gain, num_devices=5)
+                           sample_rate, bandwidth, gain, x, y, antenna_distance, num_devices=3)
     while True:
-        #kraken.read_streams()
-        #print(kraken.buffer)
-        doa_data = kraken.mem()
-        pa.DOA_plot(doa_data, np.linspace(0, 179, 180)) #d=0.25
+        kraken.read_streams()
+        kraken.plot_fft()
+        doa_data = kraken.music(x,y,antenna_distance)
+        pa.DOA_plot(doa_data, np.linspace(0, 179, 180)) 
         plt.show()
     #kraken.read_streams()   
     #kraken.plot_fft()
