@@ -1,6 +1,6 @@
 import sys
 
-sys.path.append("/usr/lib/python3/dist-packages")
+sys.path.append("/usr/local/lib/python3/dist-packages")
 
 import numpy as np
 import uhd

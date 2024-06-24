@@ -3,3 +3,4 @@ numpy<2
 matplotlib
 scipy
 pyhackrf
+pyargus
