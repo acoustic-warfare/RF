@@ -2,7 +2,7 @@ import numpy as np
 import SoapySDR as sp
 from SoapySDR import *
 from scipy.fft import fft
-from scipy.signal import butter, sosfilt, cheby2, filtfilt
+from scipy.signal import butter, sosfilt
 from matplotlib.animation import FuncAnimation
 import matplotlib.pyplot as plt
 import time
@@ -18,10 +18,19 @@ class KrakenReceiver():
         self.sample_rate = sample_rate
         self.bandwidth = bandwidth
         self.gain = gain
-        self.buffer = signals([self.center_freq], [0] ,self.num_devices, self.num_samples) #np.zeros((self.num_devices, num_samples), dtype=np.complex64) #
+        self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64) #signals([self.center_freq], [90] ,self.num_devices, self.num_samples) #
         self.devices, self.streams = self._setup_devices()
         self.x = x * antenna_distance
         self.y = y
+
+        #Build digital filter
+        fc = self.center_freq
+        fs = 4*fc
+        fn = 0.2*fs
+        bandwidth = 0.6*fc
+        wn = [np.finfo(float).eps, (bandwidth/2) / fn] 
+        sos = butter(4, wn, btype='bandpass', output='sos')
+        self.filter = sos
 
     def _setup_device(self, device_args):
         device = sp.Device(device_args) 
@@ -43,7 +52,7 @@ class KrakenReceiver():
             device = self._setup_device(device_args)
             devices[i] = device
             rx_stream = device.setupStream(SOAPY_SDR_RX, SOAPY_SDR_CF32, [0])
-            device.activateStream(rx_stream)
+            device.activateStream(rx_stream) #,, numElems=self.num_samples flags=SOAPY_SDR_END_BURST,
             streams[i] = rx_stream
 
         return devices, streams
@@ -54,12 +63,30 @@ class KrakenReceiver():
             device.closeStream(self.streams[i])
             del device
 
-    def _read_stream(self, device, time):
+    def _read_stream(self, device, timestamp):
+        sr = self.devices[device].readStream(self.streams[device], [self.buffer[device]], 
+                                            self.num_samples, 0,timestamp)
         
-        sr = self.devices[device].readStream(
-            self.streams[device], [self.buffer[device]], self.num_samples, 0, time)
-        
-        #print(f"Device {device}: \n Samples = {sr.ret} \n Timestamp = {sr.timeNs}\n Flag = {sr.flags}\n")
+        ret = sr.ret
+
+        if ret < 0:
+        #Handle errors based on the error codes
+            if ret == SOAPY_SDR_TIMEOUT:
+                raise ValueError("Timeout when reading stream")
+            elif ret == SOAPY_SDR_STREAM_ERROR:
+                raise ValueError("Stream error when reading stream")
+            elif ret == SOAPY_SDR_CORRUPTION:
+                raise ValueError("Data corruption when reading stream")
+            elif ret == SOAPY_SDR_OVERFLOW:
+                raise ValueError("Overflow when reading stream")
+            elif ret == SOAPY_SDR_NOT_SUPPORTED:
+                raise ValueError("Requested operation or flag setting is not supported")
+            elif ret == SOAPY_SDR_TIME_ERROR:
+                raise ValueError("Encountered a stream time which was expired or too early to process")
+            elif ret == SOAPY_SDR_UNDERFLOW:
+                raise ValueError("write caused an underflow condition")
+            
+        #print(f"Device {device}: \n Samples = {sr.ret} \n Flag = {sr.flags}\n")
 
     def read_streams(self):
         current_time_ns = int(time.time() * 1e9)
@@ -68,19 +95,8 @@ class KrakenReceiver():
             futures = [executor.submit(self._read_stream, i, start_time_ns) for i in range(self.num_devices)]
             for future in futures:
                 future.result()
-
-        fc = self.center_freq
-        fs = 4*fc
-        fn = 0.5*fs
-        bandwidth = 0.1*fc
-        wn = [(0.0000001*fc) /fn, (bandwidth/2) / fn]
-        print(wn)
-        sos = butter(4, wn, btype='bandpass', output='sos')
-        self.buffer = sosfilt(sos, self.buffer)
-        
-        # for i in range(self.num_devices):
-        #     channel_max = np.max(self.buffer[i])
-        #     self.buffer[i][np.abs(self.buffer[i]) < channel_max*0.95] = 0
+    
+        self.buffer = sosfilt(self.filter, self.buffer)
 
     def plot_fft(self):
 
@@ -93,7 +109,6 @@ class KrakenReceiver():
         for i in range(self.num_devices):
             #FFT of the samples
             freqs = np.fft.fftfreq(self.num_samples, d=1/self.sample_rate)
-            #fft_samples = np.fft.fftshift(fft(self.buffer[i]))
             fft_samples = fft(self.buffer[i])
             axes[i, 0].plot(freqs, np.abs(fft_samples))
             axes[i, 0].grid()
@@ -117,35 +132,35 @@ class KrakenReceiver():
         plt.show()
 
     def music(self):
-        spatial_corr_matrix = pa.corr_matrix_estimate(self.buffer.T)
+        spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
         scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0,180))
         doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=1)
 
         return doa
 
     def mem(self):
-        spatial_corr_matrix = pa.corr_matrix_estimate(self.buffer.T)
+        spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
         scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0,180))
         doa = pa.DOA_MEM(spatial_corr_matrix,scanning_vectors)
 
         return doa
 
     def capon(self):
-        spatial_corr_matrix = pa.corr_matrix_estimate(self.buffer.T)
+        spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
         scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0,180))
         doa = pa.DOA_Capon(spatial_corr_matrix,scanning_vectors)
 
         return doa
 
     def bartlett(self):
-        spatial_corr_matrix = pa.corr_matrix_estimate(self.buffer.T)
+        spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
         scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0,180))
         doa = pa.DOA_Bartlett(spatial_corr_matrix,scanning_vectors)
 
         return doa
 
     def lpm(self, element_select):
-        spatial_corr_matrix = pa.corr_matrix_estimate(self.buffer.T)
+        spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
         scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0,180))
         doa = pa.DOA_LPM(spatial_corr_matrix,scanning_vectors, element_select)
 
@@ -190,51 +205,94 @@ def signals(frequencies, angles, num_sensors, num_snapshots, wavelength=1.0, noi
     return signals + 1000 * noise
 
 def init():
-    line.set_data([], [])
-    axes.set_xlim(0,179)  
-    axes.set_ylim(0, 1)
-    
+    for lines in [line, line1, line2, line_doa]:
+        lines.set_data([], [])
+
+    for ax in axs.flat[:3]:
+        ax.set_xlim(-sample_rate / 2, sample_rate / 2)
+
+    axs[1,1].set_xlim(0,179)
+    return line, line1, line2, line_doa
+
 def update(frame):
-    kraken.buffer = signals([kraken.center_freq], [180] ,kraken.num_devices, kraken.num_samples)
     kraken.read_streams()
+
     doa_data = kraken.music()
-
     doa_data = np.divide(np.abs(doa_data),np.max(np.abs(doa_data)))
+    line_doa.set_data(np.linspace(0,179,180), doa_data)
+    axs[1,1].set_ylim(np.min(doa_data),1.1)
 
-    line.set_data(np.linspace(0,179,180), doa_data)
+    freqs = np.fft.fftfreq(num_samples, d=1 / sample_rate)
+    line_list = [line, line1, line2]
+    for i, lines in enumerate(line_list):
+        samples = kraken.buffer[i]
+        fft_samples = fft(samples)
+        abs_fft_samples = np.abs(fft_samples)
 
-    return line,
+        lines.set_data(freqs, abs_fft_samples)
+        axs.flat[i].set_ylim(0, 1.1*np.max(abs_fft_samples))
+
+    return line, line1, line2, line_doa
 
 if __name__ == "__main__":
-    num_samples = 256*1024
-    sample_rate = 2.048e6 #1.024e6  
-    center_freq = 433e6
-    bandwidth =  2e5 #1.024e6
+    num_samples = 1024*256
+    sample_rate = 2.048e6
+    center_freq = 433.9e6
+    bandwidth =  2e5 
     gain = 40
-    y = np.array([0,0,0])
-    x = np.array([0,1,2])
+    y = np.array([0,0])
+    x = np.array([0,1])
     antenna_distance = 0.35
+
     kraken = KrakenReceiver(center_freq, num_samples, 
-                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3)
+                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=2)
 
-    # while True:
-    #     kraken.read_streams()
-    #     kraken.plot_fft()
-    #     doa_data = kraken.music()
-    #     pa.DOA_plot(doa_data, np.linspace(0, 179, 180)) 
-    #     plt.show()
-    #     kraken.buffer = signals([kraken.center_freq], [180] ,kraken.num_devices, kraken.num_samples)
+   
+    while True:
+        kraken.read_streams()
+        #print(kraken.buffer.shape)
+        # kraken.plot_fft()
+        # plt.close()
+        doa_data = kraken.music()
+        print(np.argmax(doa_data))
+        #pa.DOA_plot(doa_data, np.linspace(0, 179, 180)) 
+        # plt.ylim(0,1)
+        # plt.show()
+        # kraken.buffer = signals([kraken.center_freq], [180] ,kraken.num_devices, kraken.num_samples)
 
-    fig, axes = plt.subplots()
+    # fig, axs = plt.subplots(2, 2, figsize=(10, 10))
 
-    (line,) = axes.plot([],[])
+    # (line,) = axs[0, 0].plot([], [])  #FFT for channel 0
+    # axs[0, 0].grid()
+    # axs[0, 0].set_title("Real-Time FFT of Received Samples (Channel 0)")
+    # axs[0, 0].set_xlabel("Frequency (Hz)")
+    # axs[0, 0].set_ylabel("Amplitude")
 
-    axes.set_title('Direction of Arrival Estimation', fontsize=16)
-    axes.set_xlabel('Incident Angle [deg]')
-    axes.set_ylabel('Amplitude')
-    plt.grid(True)
+    # # Top-right subplot (0, 1)
+    # (line1,) = axs[0, 1].plot([], [])  #FFT for channel 1
+    # axs[0, 1].grid()
+    # axs[0, 1].set_title("Real-Time FFT of Received Samples (Channel 1)")
+    # axs[0, 1].set_xlabel("Frequency (Hz)")
+    # axs[0, 1].set_ylabel("Amplitude")
 
-    ani = FuncAnimation(fig, update, init_func=init, frames=100, interval=500, blit=False)
+    # # Bottom-left subplot (1, 0)
+    # (line2,) = axs[1, 0].plot([], [])  #FFT for channel 2
+    # axs[1, 0].grid()
+    # axs[1, 0].set_title("Real-Time FFT of Received Samples (Channel 2)")
+    # axs[1, 0].set_xlabel("Frequency (Hz)")
+    # axs[1, 0].set_ylabel("Amplitude")
 
-    plt.show()
+    # # Bottom-right subplot (1, 1)
+    # (line_doa,) = axs[1, 1].plot([], [])  #Direction of Arrival Estimation
+    # axs[1, 1].grid()
+    # axs[1, 1].set_title('Direction of Arrival Estimation')
+    # axs[1, 1].set_xlabel('Incident Angle [deg]')
+    # axs[1, 1].set_ylabel('Amplitude')
+    
+
+    # ani = FuncAnimation(fig, update, init_func=init, frames=100, interval=500, blit=False)
+
+    # plt.grid(True)
+    # plt.tight_layout()
+    # plt.show()
   
