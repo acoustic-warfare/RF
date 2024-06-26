@@ -1,3 +1,5 @@
+import sys
+sys.path.append("/usr/lib/python3/dist-packages/")
 import adi
 import numpy as np
 import scipy.fft as fft
@@ -43,7 +45,7 @@ def init():
     return line, line1, line2, line_phase, line1_phase, line2_phase
 
 def update(frame):
-    samples = sdr.rx()
+    samples: complex = sdr.rx()
     ch0_samples= samples[0]
     ch1_samples = samples[1]
 
@@ -111,6 +113,8 @@ def update(frame):
     line_phase.set_data(freqs, ch0_angle)
     line1.set_data(freqs, abs_fft_ch1_samples)  
     line1_phase.set_data(freqs, ch1_angle)  
+    if (index < 0):
+        index = np.pi - np.abs(index)
     line2.set_data(np.cos(index), np.sin(index))
     line2_phase.set_data(freqs, np.degrees(index))
 
