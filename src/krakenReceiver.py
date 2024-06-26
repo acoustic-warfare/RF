@@ -240,116 +240,66 @@ def plot_doa(doa_data):
     plt.draw()
     plt.clf()
 
-# class RealTimePlot(QMainWindow):
-#     def __init__(self):
-#         super().__init__()
-#         self.setGeometry(100, 100, 800, 600)
-
-#         self.series = QLineSeries()
-#         self.chart = QChart()
-#         self.chart.addSeries(self.series)
-#         self.chart.createDefaultAxes()
-        
-#         self.chart_view = QChartView(self.chart)
-#         self.chart_view.setRenderHint(QPainter.Antialiasing)
-
-#         layout = QVBoxLayout()
-#         layout.addWidget(self.chart_view)
-        
-#         container = QWidget()
-#         container.setLayout(layout)
-#         self.setCentralWidget(container)
-        
-#         self.x = np.linspace(0, 179, 180)
-#         self.timer = QTimer(self)
-#         self.timer.timeout.connect(self.update_plot)
-#         self.timer.start()
-
-#     def update_plot(self):
-#         kraken.read_streams()
-#         doa_data = kraken.music()
-#         doa_data = np.divide(np.abs(doa_data),np.max(np.abs(doa_data)))
-#         self.series.clear()
-#         for i in range(len(self.x)):
-#             self.series.append(self.x[i], doa_data[i])
-
-# if __name__ == "__main__":
-#     num_samples = 1024*256
-#     sample_rate = 2.048e6
-#     center_freq = 433.9e6
-#     bandwidth =  2e5 
-#     gain = 40
-#     y = np.array([0,0,0])
-#     x = np.array([0,1,2])
-#     antenna_distance = 0.35
-
-#     kraken = KrakenReceiver(center_freq, num_samples, 
-#                            sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3)
-#     app = QApplication(sys.argv)
-#     window = RealTimePlot()
-#     window.show()
-#     sys.exit(app.exec_())
-
-
 if __name__ == "__main__":
     num_samples = 1024*256
     sample_rate = 2.048e6
     center_freq = 433.9e6
     bandwidth =  2e5 
     gain = 40
-    y = np.array([0,0])
-    x = np.array([0,1])
+    y = np.array([0,0,0])
+    x = np.array([0,1,2])
     antenna_distance = 0.35
 
     kraken = KrakenReceiver(center_freq, num_samples, 
-                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=2)
+                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3)
 
    
     while True:
         kraken.read_streams()
         doa_data = kraken.music()
         doa_data = np.divide(np.abs(doa_data),np.max(np.abs(doa_data)))
+        ant0 = np.abs(fft(kraken.buffer[0]))
+        ant1 = np.abs(fft(kraken.buffer[1]))
+        ant2 = np.abs(fft(kraken.buffer[2]))
+        freqs = np.fft.fftfreq(num_samples, d=1 / sample_rate)
         print(np.argmax(doa_data))
-        plt.ion()
-        plt.plot(np.linspace(0,179,180), doa_data)
-        #plt.pause(np.finfo(float).eps)
+        # plt.ion()
+        # plt.plot(np.linspace(0,179,180), doa_data)
+        # plt.draw()
+        # plt.clf()
+
+        plt.subplot(2, 2, 1)
+        plt.plot(np.linspace(0, 179, 180), doa_data)
+        plt.title('Direction of Arrival')
+        plt.xlabel('Angle (degrees)')
+        plt.ylabel('Normalized Amplitude')
+        
+        # Plot FFT of antenna 0
+        plt.subplot(2, 2, 2)
+        plt.plot(freqs, ant0)
+        plt.title('FFT Antenna 0')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('Amplitude')
+        plt.grid(True)
+        
+        # Plot FFT of antenna 1
+        plt.subplot(2, 2, 3)
+        plt.plot(freqs, ant1)
+        plt.title('FFT Antenna 1')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('Amplitude')
+        plt.grid(True)
+        
+        # Plot FFT of antenna 2
+        plt.subplot(2, 2, 4)
+        plt.plot(freqs, ant2)
+        plt.title('FFT Antenna 2')
+        plt.xlabel('Frequency (Hz)')
+        plt.ylabel('Amplitude')
+        plt.grid(True)
+        
+        plt.tight_layout()
         plt.draw()
+        plt.pause(np.finfo(float).eps)
         plt.clf()
     
-
-    # fig, axs = plt.subplots(2, 2, figsize=(10, 10))
-
-    # (line,) = axs[0, 0].plot([], [])  #FFT for channel 0
-    # axs[0, 0].grid()
-    # axs[0, 0].set_title("Real-Time FFT of Received Samples (Channel 0)")
-    # axs[0, 0].set_xlabel("Frequency (Hz)")
-    # axs[0, 0].set_ylabel("Amplitude")
-
-    # # Top-right subplot (0, 1)
-    # (line1,) = axs[0, 1].plot([], [])  #FFT for channel 1
-    # axs[0, 1].grid()
-    # axs[0, 1].set_title("Real-Time FFT of Received Samples (Channel 1)")
-    # axs[0, 1].set_xlabel("Frequency (Hz)")
-    # axs[0, 1].set_ylabel("Amplitude")
-
-    # # Bottom-left subplot (1, 0)
-    # (line2,) = axs[1, 0].plot([], [])  #FFT for channel 2
-    # axs[1, 0].grid()
-    # axs[1, 0].set_title("Real-Time FFT of Received Samples (Channel 2)")
-    # axs[1, 0].set_xlabel("Frequency (Hz)")
-    # axs[1, 0].set_ylabel("Amplitude")
-
-    # # Bottom-right subplot (1, 1)
-    # (line_doa,) = axs[1, 1].plot([], [])  #Direction of Arrival Estimation
-    # axs[1, 1].grid()
-    # axs[1, 1].set_title('Direction of Arrival Estimation')
-    # axs[1, 1].set_xlabel('Incident Angle [deg]')
-    # axs[1, 1].set_ylabel('Amplitude')
-    
-
-    # ani = FuncAnimation(fig, update, init_func=init, frames=100, interval=500, blit=False)
-
-    # plt.grid(True)
-    # plt.tight_layout()
-    # plt.show()
-  
