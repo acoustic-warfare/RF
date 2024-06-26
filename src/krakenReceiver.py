@@ -150,9 +150,12 @@ class KrakenReceiver():
         plt.show()
 
     def music(self):
-        spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
+        smoothed_buffer = pa.spatial_smoothing(self.buffer, subarray_size=2)
+        spatial_corr_matrix = np.dot(smoothed_buffer, smoothed_buffer.conj().T)
+        fb_corr_matrix = pa.forward_backward_avg(spatial_corr_matrix)
         scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0,180))
-        doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=1)
+        doa = pa.DOA_MUSIC(fb_corr_matrix, scanning_vectors, signal_dimension=1)
+
 
         return doa
 
