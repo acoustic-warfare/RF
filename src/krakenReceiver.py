@@ -1,18 +1,16 @@
 import numpy as np
+import sys
 import SoapySDR as sp
-from SoapySDR import *
-from scipy.fft import fft
-from scipy.signal import butter, sosfilt
-#from matplotlib.animation import FuncAnimation
+import scipy.signal as signal
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation
 import time
 import pyargus.directionEstimation as pa
-from concurrent.futures import ThreadPoolExecutor
 import pyqtgraph as pg
 from PyQt5 import QtWidgets
 from pyqtgraph.Qt import QtCore
-import sys
+from SoapySDR import *
+from scipy.fft import fft
+from concurrent.futures import ThreadPoolExecutor
 
 class KrakenReceiver():
     def __init__(self, center_freq, num_samples, sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=5):
@@ -28,13 +26,32 @@ class KrakenReceiver():
         self.y = y
 
         #Build digital filter
-        fc = self.center_freq
-        fs = 4*fc
-        fn = 0.2*fs
-        bandwidth = 0.2*fc
-        wn = [np.finfo(float).eps, (bandwidth/2) / fn] 
-        sos = butter(4, wn, btype='bandpass', output='sos')
-        self.filter = sos
+        # fc = self.center_freq
+        # fs = 4*fc
+        # fn = 0.2*fs
+        # bandwidth = 0.2*fc
+        # wn = [np.finfo(float).eps, (bandwidth/2) / fn] 
+        # sos = butter(4, wn, btype='bandpass', output='sos')
+        # self.filter = sos
+
+
+
+        # Define the parameters of the band-pass FIR filter
+        numtaps = 101  # Number of filter taps (filter length)
+        fc = 433.9e6
+        fs = 4*fc  # Sampling rate (Hz)'
+        bandwidth = 0.05*fc
+        lowcut = fc - bandwidth/2  # Lower cutoff frequency (Hz)
+        highcut = fc + bandwidth/2  # Upper cutoff frequency (Hz)
+
+        # Design a band-pass FIR filter using the firwin function
+        taps = signal.firwin(numtaps, [lowcut, highcut], fs=fs, pass_zero=False, window='hamming')
+        self.filter = taps
+
+        # Compute the frequency response of the filter
+        #freq_response = np.abs(np.fft.fft(taps, 1000))  # Compute FFT and take magnitude
+
+        #freqz = np.fft.fftfreq(freq_response.size, 1/fs)
 
     def _setup_device(self, device_args):
         device = sp.Device(device_args) 
@@ -100,7 +117,7 @@ class KrakenReceiver():
             for future in futures:
                 future.result()
     
-        self.buffer = sosfilt(self.filter, self.buffer)
+        self.buffer = signal.lfilter(self.filter, 1.0, self.buffer)
 
     def plot_fft(self):
 
@@ -276,22 +293,6 @@ if __name__ == '__main__':
     plotter = RealTimePlotter()
     plotter.show()
     sys.exit(app.exec_())
-
-# Define the parameters of the band-pass FIR filter
-numtaps = 101  # Number of filter taps (filter length)
-fc = 433.9e6
-fs = 4*fc  # Sampling rate (Hz)'
-bandwidth = 0.05*fc
-lowcut = fc - bandwidth/2  # Lower cutoff frequency (Hz)
-highcut = fc + bandwidth/2  # Upper cutoff frequency (Hz)
-
-# Design a band-pass FIR filter using the firwin function
-taps = signal.firwin(numtaps, [lowcut, highcut], fs=fs, pass_zero=False, window='hamming')
-
-# Compute the frequency response of the filter
-freq_response = np.abs(np.fft.fft(taps, 1000))  # Compute FFT and take magnitude
-
-freqz = np.fft.fftfreq(freq_response.size, 1/fs)
 
 # # Apply the filter to the signal
 # filtered_x = signal.lfilter(taps, 1.0, x)
