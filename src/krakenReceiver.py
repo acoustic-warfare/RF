@@ -35,7 +35,6 @@ class KrakenReceiver():
         # self.filter = sos
 
 
-
         numtaps = 101  # Number of filter taps (filter length)
         fc = self.center_freq
         fs = 4*fc
