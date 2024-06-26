@@ -302,4 +302,41 @@ if __name__ == "__main__":
         plt.draw()
         plt.pause(np.finfo(float).eps)
         plt.clf()
+
+
+        # fig, axs = plt.subplots(2, 2, figsize=(10, 10))
+
+    # (line,) = axs[0, 0].plot([], [])  #FFT for channel 0
+    # axs[0, 0].grid()
+    # axs[0, 0].set_title("Real-Time FFT of Received Samples (Channel 0)")
+    # axs[0, 0].set_xlabel("Frequency (Hz)")
+    # axs[0, 0].set_ylabel("Amplitude")
+
+    # # Top-right subplot (0, 1)
+    # (line1,) = axs[0, 1].plot([], [])  #FFT for channel 1
+    # axs[0, 1].grid()
+    # axs[0, 1].set_title("Real-Time FFT of Received Samples (Channel 1)")
+    # axs[0, 1].set_xlabel("Frequency (Hz)")
+    # axs[0, 1].set_ylabel("Amplitude")
+
+    # # Bottom-left subplot (1, 0)
+    # (line2,) = axs[1, 0].plot([], [])  #FFT for channel 2
+    # axs[1, 0].grid()
+    # axs[1, 0].set_title("Real-Time FFT of Received Samples (Channel 2)")
+    # axs[1, 0].set_xlabel("Frequency (Hz)")
+    # axs[1, 0].set_ylabel("Amplitude")
+
+    # # Bottom-right subplot (1, 1)
+    # (line_doa,) = axs[1, 1].plot([], [])  #Direction of Arrival Estimation
+    # axs[1, 1].grid()
+    # axs[1, 1].set_title('Direction of Arrival Estimation')
+    # axs[1, 1].set_xlabel('Incident Angle [deg]')
+    # axs[1, 1].set_ylabel('Amplitude')
+
+
+    # ani = FuncAnimation(fig, update, init_func=init, frames=100, interval=500, blit=False)
+
+    # plt.grid(True)
+    # plt.tight_layout()
+    # plt.show()
     
