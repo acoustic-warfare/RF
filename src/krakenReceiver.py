@@ -36,16 +36,14 @@ class KrakenReceiver():
 
 
 
-        # Define the parameters of the band-pass FIR filter
         numtaps = 101  # Number of filter taps (filter length)
-        fc = 433.9e6
-        fs = 4*fc  # Sampling rate (Hz)'
-        bandwidth = 0.05*fc
-        lowcut = fc - bandwidth/2  # Lower cutoff frequency (Hz)
-        highcut = fc + bandwidth/2  # Upper cutoff frequency (Hz)
+        fc = self.center_freq
+        fs = 4*fc
+        bandwidth = 0.4*fc
+        highcut = bandwidth/2  # Upper cutoff frequency (Hz)
 
         # Design a band-pass FIR filter using the firwin function
-        taps = signal.firwin(numtaps, [lowcut, highcut], fs=fs, pass_zero=False, window='hamming')
+        taps = signal.firwin(numtaps, [highcut], fs=fs, pass_zero=True, window='hamming')
         self.filter = taps
 
         # Compute the frequency response of the filter
