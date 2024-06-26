@@ -3,11 +3,10 @@ import SoapySDR as sp
 from SoapySDR import *
 from scipy.fft import fft
 from scipy.signal import butter, sosfilt
-from matplotlib.animation import FuncAnimation
+#from matplotlib.animation import FuncAnimation
 import matplotlib.pyplot as plt
 import time
 import pyargus.directionEstimation as pa
-
 from concurrent.futures import ThreadPoolExecutor
 
 class KrakenReceiver():
@@ -204,35 +203,93 @@ def signals(frequencies, angles, num_sensors, num_snapshots, wavelength=1.0, noi
     noise = np.sqrt(noise_power) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
     return signals + 1000 * noise
 
-def init():
-    for lines in [line, line1, line2, line_doa]:
-        lines.set_data([], [])
+# def init():
+#     for lines in [line, line1, line2, line_doa]:
+#         lines.set_data([], [])
 
-    for ax in axs.flat[:3]:
-        ax.set_xlim(-sample_rate / 2, sample_rate / 2)
+#     for ax in axs.flat[:3]:
+#         ax.set_xlim(-sample_rate / 2, sample_rate / 2)
 
-    axs[1,1].set_xlim(0,179)
-    return line, line1, line2, line_doa
+#     axs[1,1].set_xlim(0,179)
+#     return line, line1, line2, line_doa
 
-def update(frame):
-    kraken.read_streams()
+# def update(frame):
+#     kraken.read_streams()
 
-    doa_data = kraken.music()
-    doa_data = np.divide(np.abs(doa_data),np.max(np.abs(doa_data)))
-    line_doa.set_data(np.linspace(0,179,180), doa_data)
-    axs[1,1].set_ylim(np.min(doa_data),1.1)
+#     doa_data = kraken.music()
+#     doa_data = np.divide(np.abs(doa_data),np.max(np.abs(doa_data)))
+#     line_doa.set_data(np.linspace(0,179,180), doa_data)
+#     axs[1,1].set_ylim(np.min(doa_data),1.1)
 
-    freqs = np.fft.fftfreq(num_samples, d=1 / sample_rate)
-    line_list = [line, line1, line2]
-    for i, lines in enumerate(line_list):
-        samples = kraken.buffer[i]
-        fft_samples = fft(samples)
-        abs_fft_samples = np.abs(fft_samples)
+#     freqs = np.fft.fftfreq(num_samples, d=1 / sample_rate)
+#     line_list = [line, line1, line2]
+#     for i, lines in enumerate(line_list):
+#         samples = kraken.buffer[i]
+#         fft_samples = fft(samples)
+#         abs_fft_samples = np.abs(fft_samples)
 
-        lines.set_data(freqs, abs_fft_samples)
-        axs.flat[i].set_ylim(0, 1.1*np.max(abs_fft_samples))
+#         lines.set_data(freqs, abs_fft_samples)
+#         axs.flat[i].set_ylim(0, 1.1*np.max(abs_fft_samples))
 
-    return line, line1, line2, line_doa
+#     return line, line1, line2, line_doa
+
+def plot_doa(doa_data):
+    plt.ion()
+    plt.plot(np.linspace(0,179,180), doa_data)
+    plt.pause(0.0001)
+    plt.draw()
+    plt.clf()
+
+# class RealTimePlot(QMainWindow):
+#     def __init__(self):
+#         super().__init__()
+#         self.setGeometry(100, 100, 800, 600)
+
+#         self.series = QLineSeries()
+#         self.chart = QChart()
+#         self.chart.addSeries(self.series)
+#         self.chart.createDefaultAxes()
+        
+#         self.chart_view = QChartView(self.chart)
+#         self.chart_view.setRenderHint(QPainter.Antialiasing)
+
+#         layout = QVBoxLayout()
+#         layout.addWidget(self.chart_view)
+        
+#         container = QWidget()
+#         container.setLayout(layout)
+#         self.setCentralWidget(container)
+        
+#         self.x = np.linspace(0, 179, 180)
+#         self.timer = QTimer(self)
+#         self.timer.timeout.connect(self.update_plot)
+#         self.timer.start()
+
+#     def update_plot(self):
+#         kraken.read_streams()
+#         doa_data = kraken.music()
+#         doa_data = np.divide(np.abs(doa_data),np.max(np.abs(doa_data)))
+#         self.series.clear()
+#         for i in range(len(self.x)):
+#             self.series.append(self.x[i], doa_data[i])
+
+# if __name__ == "__main__":
+#     num_samples = 1024*256
+#     sample_rate = 2.048e6
+#     center_freq = 433.9e6
+#     bandwidth =  2e5 
+#     gain = 40
+#     y = np.array([0,0,0])
+#     x = np.array([0,1,2])
+#     antenna_distance = 0.35
+
+#     kraken = KrakenReceiver(center_freq, num_samples, 
+#                            sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3)
+#     app = QApplication(sys.argv)
+#     window = RealTimePlot()
+#     window.show()
+#     sys.exit(app.exec_())
+
 
 if __name__ == "__main__":
     num_samples = 1024*256
@@ -250,15 +307,15 @@ if __name__ == "__main__":
    
     while True:
         kraken.read_streams()
-        #print(kraken.buffer.shape)
-        # kraken.plot_fft()
-        # plt.close()
         doa_data = kraken.music()
+        doa_data = np.divide(np.abs(doa_data),np.max(np.abs(doa_data)))
         print(np.argmax(doa_data))
-        #pa.DOA_plot(doa_data, np.linspace(0, 179, 180)) 
-        # plt.ylim(0,1)
-        # plt.show()
-        # kraken.buffer = signals([kraken.center_freq], [180] ,kraken.num_devices, kraken.num_samples)
+        plt.ion()
+        plt.plot(np.linspace(0,179,180), doa_data)
+        #plt.pause(np.finfo(float).eps)
+        plt.draw()
+        plt.clf()
+    
 
     # fig, axs = plt.subplots(2, 2, figsize=(10, 10))
 
