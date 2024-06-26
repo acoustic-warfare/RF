@@ -5,9 +5,14 @@ from scipy.fft import fft
 from scipy.signal import butter, sosfilt
 #from matplotlib.animation import FuncAnimation
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
 import time
 import pyargus.directionEstimation as pa
 from concurrent.futures import ThreadPoolExecutor
+import pyqtgraph as pg
+from PyQt5 import QtWidgets
+from pyqtgraph.Qt import QtCore
+import sys
 
 class KrakenReceiver():
     def __init__(self, center_freq, num_samples, sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=5):
@@ -26,7 +31,7 @@ class KrakenReceiver():
         fc = self.center_freq
         fs = 4*fc
         fn = 0.2*fs
-        bandwidth = 0.6*fc
+        bandwidth = 0.2*fc
         wn = [np.finfo(float).eps, (bandwidth/2) / fn] 
         sos = butter(4, wn, btype='bandpass', output='sos')
         self.filter = sos
@@ -100,9 +105,9 @@ class KrakenReceiver():
     def plot_fft(self):
 
         if self.num_devices > 1:
-            fig, axes = plt.subplots(self.num_devices, 2, figsize=(15, 5 * self.num_devices))
+            fig, axes = plt.subplots(self.num_devices, 2, figsize=(18, 8 * self.num_devices))
         else:
-            fig, axes = plt.subplots(1, 2, figsize=(15, 5))
+            fig, axes = plt.subplots(1, 2, figsize=(18, 8))
             axes = np.array([axes])  #Ensure axes is always a 2D array
 
         for i in range(self.num_devices):
@@ -240,71 +245,71 @@ def plot_doa(doa_data):
     plt.draw()
     plt.clf()
 
-if __name__ == "__main__":
-    num_samples = 1024*256
-    sample_rate = 2.048e6
-    center_freq = 433.9e6
-    bandwidth =  2e5 
-    gain = 40
-    y = np.array([0,0,0])
-    x = np.array([0,1,2])
-    antenna_distance = 0.35
+# if __name__ == "__main__":
+#     num_samples = 1024*256
+#     sample_rate = 2.048e6
+#     center_freq = 433.9e6
+#     bandwidth =  2e5 
+#     gain = 40
+#     y = np.array([0,0,0])
+#     x = np.array([0,1,2])
+#     antenna_distance = 0.35
 
-    kraken = KrakenReceiver(center_freq, num_samples, 
-                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3)
+#     kraken = KrakenReceiver(center_freq, num_samples, 
+#                            sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3)
 
    
-    while True:
-        kraken.read_streams()
-        doa_data = kraken.music()
-        doa_data = np.divide(np.abs(doa_data),np.max(np.abs(doa_data)))
-        ant0 = np.abs(fft(kraken.buffer[0]))
-        ant1 = np.abs(fft(kraken.buffer[1]))
-        ant2 = np.abs(fft(kraken.buffer[2]))
-        freqs = np.fft.fftfreq(num_samples, d=1 / sample_rate)
-        print(np.argmax(doa_data))
-        # plt.ion()
-        # plt.plot(np.linspace(0,179,180), doa_data)
-        # plt.draw()
-        # plt.clf()
+    # while True:
+    #     kraken.read_streams()
+    #     doa_data = kraken.music()
+    #     doa_data = np.divide(np.abs(doa_data),np.max(np.abs(doa_data)))
+    #     ant0 = np.abs(fft(kraken.buffer[0]))
+    #     ant1 = np.abs(fft(kraken.buffer[1]))
+    #     ant2 = np.abs(fft(kraken.buffer[2]))
+    #     freqs = np.fft.fftfreq(num_samples, d=1 / sample_rate)
+    #     print(np.argmax(doa_data))
+    #     # plt.ion()
+    #     # plt.plot(np.linspace(0,179,180), doa_data)
+    #     # plt.draw()
+    #     # plt.clf()
 
-        plt.subplot(2, 2, 1)
-        plt.plot(np.linspace(0, 179, 180), doa_data)
-        plt.title('Direction of Arrival')
-        plt.xlabel('Angle (degrees)')
-        plt.ylabel('Normalized Amplitude')
+    #     plt.subplot(2, 2, 1)
+    #     plt.plot(np.linspace(0, 179, 180), doa_data)
+    #     plt.title('Direction of Arrival')
+    #     plt.xlabel('Angle (degrees)')
+    #     plt.ylabel('Normalized Amplitude')
         
-        # Plot FFT of antenna 0
-        plt.subplot(2, 2, 2)
-        plt.plot(freqs, ant0)
-        plt.title('FFT Antenna 0')
-        plt.xlabel('Frequency (Hz)')
-        plt.ylabel('Amplitude')
-        plt.grid(True)
+    #     # Plot FFT of antenna 0
+    #     plt.subplot(2, 2, 2)
+    #     plt.plot(freqs, ant0)
+    #     plt.title('FFT Antenna 0')
+    #     plt.xlabel('Frequency (Hz)')
+    #     plt.ylabel('Amplitude')
+    #     plt.grid(True)
         
-        # Plot FFT of antenna 1
-        plt.subplot(2, 2, 3)
-        plt.plot(freqs, ant1)
-        plt.title('FFT Antenna 1')
-        plt.xlabel('Frequency (Hz)')
-        plt.ylabel('Amplitude')
-        plt.grid(True)
+    #     # Plot FFT of antenna 1
+    #     plt.subplot(2, 2, 3)
+    #     plt.plot(freqs, ant1)
+    #     plt.title('FFT Antenna 1')
+    #     plt.xlabel('Frequency (Hz)')
+    #     plt.ylabel('Amplitude')
+    #     plt.grid(True)
         
-        # Plot FFT of antenna 2
-        plt.subplot(2, 2, 4)
-        plt.plot(freqs, ant2)
-        plt.title('FFT Antenna 2')
-        plt.xlabel('Frequency (Hz)')
-        plt.ylabel('Amplitude')
-        plt.grid(True)
+    #     # Plot FFT of antenna 2
+    #     plt.subplot(2, 2, 4)
+    #     plt.plot(freqs, ant2)
+    #     plt.title('FFT Antenna 2')
+    #     plt.xlabel('Frequency (Hz)')
+    #     plt.ylabel('Amplitude')
+    #     plt.grid(True)
         
-        plt.tight_layout()
-        plt.draw()
-        plt.pause(np.finfo(float).eps)
-        plt.clf()
+    #     plt.tight_layout()
+    #     plt.draw()
+    #     plt.pause(np.finfo(float).eps)
+    #     plt.clf()
 
 
-        # fig, axs = plt.subplots(2, 2, figsize=(10, 10))
+    # fig, axs = plt.subplots(2, 2, figsize=(10, 10))
 
     # (line,) = axs[0, 0].plot([], [])  #FFT for channel 0
     # axs[0, 0].grid()
@@ -334,9 +339,77 @@ if __name__ == "__main__":
     # axs[1, 1].set_ylabel('Amplitude')
 
 
-    # ani = FuncAnimation(fig, update, init_func=init, frames=100, interval=500, blit=False)
+    # ani = FuncAnimation(fig, update, init_func=init, frames=100, interval=1000, blit=False)
 
     # plt.grid(True)
     # plt.tight_layout()
     # plt.show()
     
+class RealTimePlotter(QtWidgets.QMainWindow):
+    def __init__(self):
+        super().__init__()
+        
+        self.initUI()
+        self.timer = QtCore.QTimer()
+        self.timer.timeout.connect(self.update_plots)
+        self.timer.start(0)
+        
+    def initUI(self):
+        self.setWindowTitle('Real-Time Data Visualization')
+        
+        self.centralWidget = QtWidgets.QWidget()
+        self.setCentralWidget(self.centralWidget)
+        
+        self.layout = QtWidgets.QGridLayout(self.centralWidget)
+        
+        self.doa_plot = pg.PlotWidget(title="Direction of Arrival")
+        self.doa_curve = self.doa_plot.plot(pen='y')
+        self.layout.addWidget(self.doa_plot, 0, 0, 1, 1)
+        
+        self.fft_plot_0 = pg.PlotWidget(title="FFT Antenna 0")
+        self.fft_curve_0 = self.fft_plot_0.plot(pen='r')
+        self.layout.addWidget(self.fft_plot_0, 0, 1, 1, 1)
+        
+        self.fft_plot_1 = pg.PlotWidget(title="FFT Antenna 1")
+        self.fft_curve_1 = self.fft_plot_1.plot(pen='g')
+        self.layout.addWidget(self.fft_plot_1, 1, 0, 1, 1)
+        
+        self.fft_plot_2 = pg.PlotWidget(title="FFT Antenna 2")
+        self.fft_curve_2 = self.fft_plot_2.plot(pen='b')
+        self.layout.addWidget(self.fft_plot_2, 1, 1, 1, 1)
+        
+    def update_plots(self):
+        kraken.read_streams()
+        doa_data = kraken.music()
+        doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
+        print(np.argmax(doa_data))
+        
+        num_samples = len(kraken.buffer[0])
+        sample_rate = 1000  # Assuming a sample rate of 1000 Hz
+        freqs = np.fft.fftfreq(num_samples, d=1/sample_rate)
+        
+        ant0 = np.abs(np.fft.fft(kraken.buffer[0]))
+        ant1 = np.abs(np.fft.fft(kraken.buffer[1]))
+        ant2 = np.abs(np.fft.fft(kraken.buffer[2]))
+        
+        self.doa_curve.setData(np.linspace(0, 179, 180), doa_data)
+        self.fft_curve_0.setData(freqs, ant0)
+        self.fft_curve_1.setData(freqs, ant1)
+        self.fft_curve_2.setData(freqs, ant2)
+
+if __name__ == '__main__':
+    num_samples = 1024*256
+    sample_rate = 2.048e6
+    center_freq = 433.9e6
+    bandwidth =  2e5 
+    gain = 40
+    y = np.array([0,0,0])
+    x = np.array([0,1,2])
+    antenna_distance = 0.35
+
+    kraken = KrakenReceiver(center_freq, num_samples, 
+                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3)
+    app = QtWidgets.QApplication(sys.argv)
+    plotter = RealTimePlotter()
+    plotter.show()
+    sys.exit(app.exec_())
