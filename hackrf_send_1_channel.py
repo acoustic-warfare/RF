@@ -3,8 +3,10 @@ from SoapySDR import * #SOAPY_SDR_ constants
 import numpy as np #use numpy for buffers
 
 #enumerate devices
-results = SoapySDR.Device.enumerate({"driver": "hackrf"})
+results = SoapySDR.Device.enumerate()# {"driver": "hackrf"})
 for result in results: print(result)
+
+exit(0)
 
 #create device instance
 #args can be user defined or from the enumeration result
