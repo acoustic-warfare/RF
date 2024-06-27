@@ -150,11 +150,11 @@ class KrakenReceiver():
         plt.show()
 
     def music(self):
-        smoothed_buffer = pa.spatial_smoothing(self.buffer, subarray_size=2)
-        spatial_corr_matrix = np.dot(smoothed_buffer, smoothed_buffer.conj().T)
-        fb_corr_matrix = pa.forward_backward_avg(spatial_corr_matrix)
+        #smoothed_buffer = pa.spatial_smoothing(self.buffer, 2, direction = 'forward-backward')
+        spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
+        spatial_corr_matrix = pa.forward_backward_avg(spatial_corr_matrix)
         scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0,180))
-        doa = pa.DOA_MUSIC(fb_corr_matrix, scanning_vectors, signal_dimension=1)
+        doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=1)
 
 
         return doa
@@ -280,15 +280,17 @@ class RealTimePlotter(QtWidgets.QMainWindow):
 if __name__ == '__main__':
     num_samples = 1024*256
     sample_rate = 2.048e6
-    center_freq = 433.9e6
+    center_freq = 103.3e6
     bandwidth =  2e5 
     gain = 40
     y = np.array([0,0,0])
     x = np.array([0,1,2])
-    antenna_distance = 0.35
+    antenna_distance = 0.725
 
     kraken = KrakenReceiver(center_freq, num_samples, 
                            sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3)
+    kraken.read_streams()
+    kraken.plot_fft()
     app = QtWidgets.QApplication(sys.argv)
     plotter = RealTimePlotter()
     plotter.show()
