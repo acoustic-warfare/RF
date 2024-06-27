@@ -22,6 +22,8 @@ class KrakenReceiver():
         self.gain = gain
         self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64) #signals([self.center_freq], [90] ,self.num_devices, self.num_samples) #
         self.devices, self.streams = self._setup_devices()
+        #for i in range(self.num_devices):
+        #    print(self.devices[i].getStreamMTU(self.streams[i]))
         self.x = x * antenna_distance
         self.y = y
 
@@ -70,7 +72,9 @@ class KrakenReceiver():
             device = self._setup_device(device_args)
             devices[i] = device
             rx_stream = device.setupStream(SOAPY_SDR_RX, SOAPY_SDR_CF32, [0])
-            device.activateStream(rx_stream) #,, numElems=self.num_samples flags=SOAPY_SDR_END_BURST,
+            msg = device.activateStream(rx_stream)
+            if msg != 0:
+                raise ValueError(f"Stream setup of device {i} failed with error message {msg}")
             streams[i] = rx_stream
 
         return devices, streams
@@ -96,7 +100,8 @@ class KrakenReceiver():
             elif ret == SOAPY_SDR_CORRUPTION:
                 raise ValueError("Data corruption when reading stream")
             elif ret == SOAPY_SDR_OVERFLOW:
-                raise ValueError("Overflow when reading stream")
+                #raise ValueError("Overflow when reading stream")
+                print("Overflow")
             elif ret == SOAPY_SDR_NOT_SUPPORTED:
                 raise ValueError("Requested operation or flag setting is not supported")
             elif ret == SOAPY_SDR_TIME_ERROR:
@@ -155,7 +160,6 @@ class KrakenReceiver():
         spatial_corr_matrix = pa.forward_backward_avg(spatial_corr_matrix)
         scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0,180))
         doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=1)
-
 
         return doa
 
@@ -278,7 +282,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.fft_curve_2.setData(freqs, ant2)
 
 if __name__ == '__main__':
-    num_samples = 1024*256
+    num_samples = 1024*128
     sample_rate = 2.048e6
     center_freq = 103.3e6
     bandwidth =  2e5 
@@ -289,12 +293,15 @@ if __name__ == '__main__':
 
     kraken = KrakenReceiver(center_freq, num_samples, 
                            sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3)
-    kraken.read_streams()
-    kraken.plot_fft()
-    app = QtWidgets.QApplication(sys.argv)
-    plotter = RealTimePlotter()
-    plotter.show()
-    sys.exit(app.exec_())
+    while True:
+        kraken.read_streams()
+        print(np.argmax(kraken.music()))
+    #kraken.read_streams()
+    #kraken.plot_fft()
+    # app = QtWidgets.QApplication(sys.argv)
+    # plotter = RealTimePlotter()
+    # plotter.show()
+    # sys.exit(app.exec_())
 
 # # Apply the filter to the signal
 # filtered_x = signal.lfilter(taps, 1.0, x)
