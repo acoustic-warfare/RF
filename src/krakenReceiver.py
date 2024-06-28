@@ -1,7 +1,6 @@
 import numpy as np
 import sys
 import SoapySDR as sp
-import scipy.stats as stats
 import scipy.signal as signal
 import matplotlib.pyplot as plt
 import time
@@ -12,9 +11,39 @@ from pyqtgraph.Qt import QtCore
 from SoapySDR import *
 from scipy.fft import fft
 from concurrent.futures import ThreadPoolExecutor
-import pandas as pd
 
 class KrakenReceiver():
+    """
+    Represents a Kraken receiver system for signal processing.
+
+    Attributes:
+    num_devices : int
+        Number of receiver devices.
+    center_freq : float
+        Center frequency of the signal.
+    num_samples : int
+        Number of samples per device per capture.
+    sample_rate : float
+        Sampling rate in samples per second.
+    bandwidth : float
+        Bandwidth of the signal.
+    gain : float
+        Gain of the receiver devices.
+    buffer : numpy.ndarray
+        Buffer to store captured signal data, shape (num_devices, num_samples).
+    devices : numpy.ndarray
+        List of device objects representing the receiver devices.
+    streams : numpy.ndarray
+        List of streams associated with each device for data capture.
+    x : float
+        X-coordinate of the receiver location (scaled by antenna distance).
+    y : float
+        Y-coordinate of the receiver location.
+    num_devices : int, optional
+        Number of receiver devices (default is 5).
+    filter : scipy filter object
+        A signal processing filter
+    """
     def __init__(self, center_freq, num_samples, sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=5):
         self.num_devices = num_devices
         self.center_freq = center_freq
@@ -29,12 +58,6 @@ class KrakenReceiver():
            #print(self.devices[i].getStreamMTU(self.streams[i]))
         self.x = x * antenna_distance
         self.y = y
-
-        self.cal_data_x = np.linspace(0, 999, 1000)
-        self.cal_data_y = []
-        self.buff_boi = []
-        self.slope = 0.00946259378868389
-        self.offs = 1.0 #/(1 - self.slope)
 
         #Build digital filter
         # fc = self.center_freq
@@ -56,12 +79,19 @@ class KrakenReceiver():
         taps = signal.firwin(numtaps, [highcut], fs=fs, pass_zero=True, window='hamming')
         self.filter = taps
 
-        # Compute the frequency response of the filter
-        #freq_response = np.abs(np.fft.fft(taps, 1000))  # Compute FFT and take magnitude
-
-        #freqz = np.fft.fftfreq(freq_response.size, 1/fs)
-
     def _setup_device(self, device_args):
+        """
+        Set up a receiver device with specified parameters.
+
+        Parameters:
+        device_args : dict
+            Dictionary containing arguments needed to initialize the device.
+
+        Returns:
+        sp.Device
+            Initialized receiver device object configured with specified parameters.
+
+        """
         device = sp.Device(device_args) 
         device.setSampleRate(SOAPY_SDR_RX, 0, self.sample_rate)
         device.setFrequency(SOAPY_SDR_RX, 0, self.center_freq)
@@ -71,6 +101,19 @@ class KrakenReceiver():
     
     
     def _setup_devices(self):
+        """
+        Set up multiple receiver devices for data capture.
+
+        Returns:
+        tuple
+            A tuple containing:
+            - numpy.ndarray: Array of initialized receiver device objects (`sp.Device`).
+            - numpy.ndarray: Array of activated data streams associated with each device.
+
+        Raises:
+        ValueError:
+            If setting up or activating the data stream for any device fails.
+        """
         devices = np.zeros(self.num_devices, dtype=object)
         streams = np.zeros(self.num_devices, dtype=object)
         available_devices = sp.Device.enumerate()
@@ -89,12 +132,28 @@ class KrakenReceiver():
         return devices, streams
 
     def close_streams(self):
+        """
+        Deactivates and closes all active data streams for the receiver devices.
+        """
         for i, device in enumerate(self.devices):
             device.deactivateStream(self.streams[i])
             device.closeStream(self.streams[i])
             del device
 
     def _read_stream(self, device, timestamp):
+        """
+        Reads data from a specified device's stream and handles any errors.
+
+        Parameters:
+        device : int
+            Index of the device from which to read data.
+        timestamp : int
+            Timestamp indicating the start time of the read operation.
+
+        Raises:
+        ValueError:
+            If an error occurs while reading the stream (e.g., timeout, overflow).
+        """
         sr = self.devices[device].readStream(self.streams[device], [self.buffer[device]], 
                                             self.num_samples, 0,timestamp)
         
@@ -120,6 +179,12 @@ class KrakenReceiver():
         #print(f"Device {device}: \n Samples = {sr.ret} \n Flag = {sr.flags}\n")
 
     def read_streams(self):
+        """
+        Reads data from all receiver devices and filters the captured signals.
+
+        Uses a thread pool to read data from multiple devices concurrently,
+        then applies a filter to the captured signals stored in `self.buffer`.
+        """
         current_time_ns = int(time.time() * 1e9)
         start_time_ns = int(current_time_ns + 5e9)
         with ThreadPoolExecutor(max_workers=self.num_devices) as executor:
@@ -128,16 +193,14 @@ class KrakenReceiver():
                 future.result()
     
         self.buffer = signal.lfilter(self.filter, 1.0, self.buffer)
-        self.buffer = self.buffer*self.offs
-        # if len(self.cal_data_x) == len(self.cal_data_y):
-        #     print(stats.linregress(self.cal_data_x, self.cal_data_y))
-        # else:
-        #     self.buff_boi = fft(self.buffer[0])
-        #     self.cal_data_y.append(np.max(np.abs(self.buff_boi)))
-        #     print(f'Len y: {len(self.cal_data_y)} Len x: {len(self.cal_data_x)}')
-
+        
     def plot_fft(self):
+        """
+        Plots the FFT and phase of received signals for each channel.
 
+        Generates plots for each receiver device showing the FFT (amplitude)
+        and phase of the received signals.
+        """
         if self.num_devices > 1:
             fig, axes = plt.subplots(self.num_devices, 2, figsize=(18, 8 * self.num_devices))
         else:
@@ -170,6 +233,13 @@ class KrakenReceiver():
         plt.show()
 
     def music(self):
+        """
+        Performs Direction of Arrival (DOA) estimation using the MEM algorithm.
+
+        Returns:
+        numpy.ndarray
+            Array of estimated DOA angles in degrees.
+        """
         #smoothed_buffer = pa.spatial_smoothing(self.buffer, 2, direction = 'forward-backward')
         spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
         spatial_corr_matrix = pa.forward_backward_avg(spatial_corr_matrix)
@@ -179,6 +249,13 @@ class KrakenReceiver():
         return doa
 
     def mem(self):
+        """
+        Performs Direction of Arrival (DOA) estimation using the MEM algorithm.
+
+        Returns:
+        numpy.ndarray
+            Array of estimated DOA angles in degrees.
+        """
         spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
         scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0,180))
         doa = pa.DOA_MEM(spatial_corr_matrix,scanning_vectors)
@@ -186,6 +263,13 @@ class KrakenReceiver():
         return doa
 
     def capon(self):
+        """
+        Performs Direction of Arrival (DOA) estimation using the Capon algorithm.
+
+        Returns:
+        numpy.ndarray
+            Array of estimated DOA angles in degrees.
+        """
         spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
         scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0,180))
         doa = pa.DOA_Capon(spatial_corr_matrix,scanning_vectors)
@@ -193,6 +277,13 @@ class KrakenReceiver():
         return doa
 
     def bartlett(self):
+        """
+        Performs Direction of Arrival (DOA) estimation using the Bartlett algorithm.
+
+        Returns:
+        numpy.ndarray
+            Array of estimated DOA angles in degrees.
+        """
         spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
         scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0,180))
         doa = pa.DOA_Bartlett(spatial_corr_matrix,scanning_vectors)
@@ -200,6 +291,17 @@ class KrakenReceiver():
         return doa
 
     def lpm(self, element_select):
+        """
+        Performs Direction of Arrival (DOA) estimation using the LPM algorithm with specified element selection.
+
+        Parameters:
+        element_select : int
+            Index of the element to select for DOA estimation.
+
+        Returns:
+        numpy.ndarray
+            Array of estimated DOA angles in degrees.
+        """
         spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
         scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0,180))
         doa = pa.DOA_LPM(spatial_corr_matrix,scanning_vectors, element_select)
@@ -207,6 +309,16 @@ class KrakenReceiver():
         return doa
 
 def get_device_info():
+        """
+        Retrieves and prints information about available SDR devices.
+
+        Returns:
+        list of dict:
+            A list where each element is a dictionary containing information about
+            one SDR device, including its sample rate range, frequency range,
+            gain range, and bandwidth range.
+
+        """
         available_devices = sp.Device.enumerate()
         device_info_list = []
 
@@ -228,7 +340,29 @@ def get_device_info():
         return device_info_list
 
 def signals(frequencies, angles, num_sensors, num_snapshots, wavelength=1.0, noise_power=1e-3):
+    """
+    Generates signals received by sensor array.
 
+    Parameters:
+    frequencies : list
+        List of frequencies (in Hz) of the transmitted signals.
+    angles : list
+        List of angles (in degrees) of arrival corresponding to each frequency.
+    num_sensors : int
+        Number of sensors in the array.
+    num_snapshots : int
+        Number of signal snapshots to generate.
+    wavelength : float, optional
+        Wavelength of the transmitted signals (default is 1.0).
+    noise_power : float, optional
+        Power of additive Gaussian noise (default is 1e-3).
+
+    Returns:
+    numpy.ndarray
+        2D array of complex numbers representing received signals at each sensor
+        over time (shape: (num_sensors, num_snapshots)).
+
+    """
     antenna_distance_m = 0.35
     sensor_positions = np.array([0,1,2]) * antenna_distance_m
     signals = np.zeros((num_sensors, num_snapshots), dtype=complex)
@@ -244,7 +378,17 @@ def signals(frequencies, angles, num_sensors, num_snapshots, wavelength=1.0, noi
     return signals + 1000 * noise
     
 class RealTimePlotter(QtWidgets.QMainWindow):
+    """
+    A PyQt-based GUI window for real-time data visualization of direction of arrival (DOA) and FFT plots.
+
+    Attributes:
+    timer : QtCore.QTimer
+        QTimer object responsible for triggering the update of plots at regular intervals.
+    """
     def __init__(self):
+        """
+        Initializes the RealTimePlotter instance.
+        """
         super().__init__()
         
         self.initUI()
@@ -253,6 +397,9 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.timer.start(0)
         
     def initUI(self):
+        """
+        Sets up the user interface (UI) layout.
+        """
         self.setWindowTitle('Real-Time Data Visualization')
         
         self.centralWidget = QtWidgets.QWidget()
@@ -277,6 +424,13 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.layout.addWidget(self.fft_plot_2, 1, 1, 1, 1)
         
     def update_plots(self):
+        """
+        Updates the direction of arrival (DOA) and FFT plots with real-time data.
+
+        Reads data from the `kraken` instance using `kraken.read_streams()`.
+        Performs DOA estimation using the MUSIC algorithm, computes FFTs of received signals,
+        and updates the corresponding PlotWidget curves (`doa_curve`, `fft_curve_0`, `fft_curve_1`, `fft_curve_2`).
+        """
         kraken.read_streams()
         #kraken.buffer = signals([kraken.center_freq], [180] ,kraken.num_devices, kraken.num_samples)
         #kraken.buffer = signal.lfilter(kraken.filter, 1.0, kraken.buffer)
@@ -318,18 +472,3 @@ if __name__ == '__main__':
     plotter = RealTimePlotter()
     plotter.show()
     sys.exit(app.exec_())
-
-# # Apply the filter to the signal
-# filtered_x = signal.lfilter(taps, 1.0, x)
-
-# # Plot the frequency response
-# plt.figure(figsize=(10, 6))
-# plt.plot(freqz, 20 * np.log10(freq_response))
-# plt.title('Frequency Response of Band-Pass FIR Filter')
-# plt.xlabel('Frequency (Hz)')
-# plt.ylabel('Gain (dB)')
-# plt.grid(True)
-# plt.ylim(-80, 10)
-# plt.xlim(0, fs / 2)
-# plt.tight_layout()
-# plt.show()
