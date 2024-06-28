@@ -1,6 +1,7 @@
 import numpy as np
 import sys
 import SoapySDR as sp
+import scipy.stats as stats
 import scipy.signal as signal
 import matplotlib.pyplot as plt
 import time
@@ -11,6 +12,7 @@ from pyqtgraph.Qt import QtCore
 from SoapySDR import *
 from scipy.fft import fft
 from concurrent.futures import ThreadPoolExecutor
+import pandas as pd
 
 class KrakenReceiver():
     def __init__(self, center_freq, num_samples, sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=5):
@@ -20,27 +22,34 @@ class KrakenReceiver():
         self.sample_rate = sample_rate
         self.bandwidth = bandwidth
         self.gain = gain
-        self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64) #signals([self.center_freq], [90] ,self.num_devices, self.num_samples) #
+        self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64)
+        #self.buffer = signals([self.center_freq], [90] ,self.num_devices, self.num_samples)
         self.devices, self.streams = self._setup_devices()
         #for i in range(self.num_devices):
-        #    print(self.devices[i].getStreamMTU(self.streams[i]))
+           #print(self.devices[i].getStreamMTU(self.streams[i]))
         self.x = x * antenna_distance
         self.y = y
+
+        self.cal_data_x = np.linspace(0, 999, 1000)
+        self.cal_data_y = []
+        self.buff_boi = []
+        self.slope = 0.00946259378868389
+        self.offs = 1.0 #/(1 - self.slope)
 
         #Build digital filter
         # fc = self.center_freq
         # fs = 4*fc
-        # fn = 0.2*fs
+        # fn = 0.5*fs
         # bandwidth = 0.2*fc
         # wn = [np.finfo(float).eps, (bandwidth/2) / fn] 
-        # sos = butter(4, wn, btype='bandpass', output='sos')
+        # sos = signal.butter(4, wn, btype='bandpass', output='sos')
         # self.filter = sos
 
 
         numtaps = 101  # Number of filter taps (filter length)
         fc = self.center_freq
         fs = 4*fc
-        bandwidth = 0.4*fc
+        bandwidth = 0.1*fc
         highcut = bandwidth/2  # Upper cutoff frequency (Hz)
 
         # Design a band-pass FIR filter using the firwin function
@@ -100,8 +109,7 @@ class KrakenReceiver():
             elif ret == SOAPY_SDR_CORRUPTION:
                 raise ValueError("Data corruption when reading stream")
             elif ret == SOAPY_SDR_OVERFLOW:
-                #raise ValueError("Overflow when reading stream")
-                print("Overflow")
+                raise ValueError("Overflow when reading stream")
             elif ret == SOAPY_SDR_NOT_SUPPORTED:
                 raise ValueError("Requested operation or flag setting is not supported")
             elif ret == SOAPY_SDR_TIME_ERROR:
@@ -120,6 +128,13 @@ class KrakenReceiver():
                 future.result()
     
         self.buffer = signal.lfilter(self.filter, 1.0, self.buffer)
+        self.buffer = self.buffer*self.offs
+        # if len(self.cal_data_x) == len(self.cal_data_y):
+        #     print(stats.linregress(self.cal_data_x, self.cal_data_y))
+        # else:
+        #     self.buff_boi = fft(self.buffer[0])
+        #     self.cal_data_y.append(np.max(np.abs(self.buff_boi)))
+        #     print(f'Len y: {len(self.cal_data_y)} Len x: {len(self.cal_data_x)}')
 
     def plot_fft(self):
 
@@ -219,7 +234,6 @@ def signals(frequencies, angles, num_sensors, num_snapshots, wavelength=1.0, noi
     signals = np.zeros((num_sensors, num_snapshots), dtype=complex)
     frequency_offset = frequencies[0]
 
-
     for f, angle in zip(frequencies, angles):
         f_cal = f - frequency_offset
         signal = np.exp(1j * 2 * np.pi * f_cal * np.arange(num_snapshots) / num_snapshots)
@@ -264,17 +278,19 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         
     def update_plots(self):
         kraken.read_streams()
+        #kraken.buffer = signals([kraken.center_freq], [180] ,kraken.num_devices, kraken.num_samples)
+        #kraken.buffer = signal.lfilter(kraken.filter, 1.0, kraken.buffer)
         doa_data = kraken.music()
         doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
-        print(np.argmax(doa_data))
+        #print(np.sum(kraken.filter)) #np.argmax(doa_data))
         
         num_samples = len(kraken.buffer[0])
         sample_rate = 1000  # Assuming a sample rate of 1000 Hz
         freqs = np.fft.fftfreq(num_samples, d=1/sample_rate)
         
-        ant0 = np.abs(np.fft.fft(kraken.buffer[0]))
-        ant1 = np.abs(np.fft.fft(kraken.buffer[1]))
-        ant2 = np.abs(np.fft.fft(kraken.buffer[2]))
+        ant0 = np.abs(fft(kraken.buffer[0]))
+        ant1 = np.abs(fft(kraken.buffer[1]))
+        ant2 = np.abs(fft(kraken.buffer[2]))
         
         self.doa_curve.setData(np.linspace(0, 179, 180), doa_data)
         self.fft_curve_0.setData(freqs, ant0)
@@ -293,15 +309,15 @@ if __name__ == '__main__':
 
     kraken = KrakenReceiver(center_freq, num_samples, 
                            sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3)
-    while True:
-        kraken.read_streams()
-        print(np.argmax(kraken.music()))
+    # while True:
+    #     kraken.read_streams()
+    #     print(np.argmax(kraken.music()))
     #kraken.read_streams()
     #kraken.plot_fft()
-    # app = QtWidgets.QApplication(sys.argv)
-    # plotter = RealTimePlotter()
-    # plotter.show()
-    # sys.exit(app.exec_())
+    app = QtWidgets.QApplication(sys.argv)
+    plotter = RealTimePlotter()
+    plotter.show()
+    sys.exit(app.exec_())
 
 # # Apply the filter to the signal
 # filtered_x = signal.lfilter(taps, 1.0, x)
