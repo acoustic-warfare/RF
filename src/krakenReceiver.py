@@ -88,8 +88,8 @@ class KrakenReceiver():
 
         elif f_type == 'LTI':
         
-            num = [1.0]
-            den = [1.0]
+            num = [0.0, 1.0]
+            den = [1e-6 , 1.0]
 
             #system = signal.lti(num, den)
             #(b, a) = signal.TransferFunction(num, den)
@@ -179,9 +179,9 @@ class KrakenReceiver():
         ValueError:
             If an error occurs while reading the stream (e.g., timeout, overflow).
         """
-        status = self.devices[device].readStreamStatus()
-        if status != 0:
-            raise ValueError(f"Stream status {status}")
+        # status = self.devices[device].readStreamStatus()
+        # if status != 0:
+        #     raise ValueError(f"Stream status {status}")
         sr = self.devices[device].readStream(self.streams[device], [self.buffer[device]], 
                                             self.num_samples, 0,timestamp)
         
@@ -534,6 +534,8 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.fft_curve_1.setData(freqs, ant1)
         self.fft_curve_2.setData(freqs, ant2)
 
+        print(np.argmax(kraken.music()))
+
 if __name__ == '__main__':
     num_samples = 1024*128
     sample_rate = 2.048e6
@@ -547,13 +549,12 @@ if __name__ == '__main__':
     kraken = KrakenReceiver(center_freq, num_samples, 
                            sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3, simulation = 0, f_type = 'LTI')
     
-    get_device_info(kraken)
+    #get_device_info()
     # while True:
     #     kraken.read_streams()
-    #     print(np.argmax(kraken.music()))
     #kraken.read_streams()
     #kraken.plot_fft()
-    # app = QtWidgets.QApplication(sys.argv)
-    # plotter = RealTimePlotter()
-    # plotter.show()
-    # sys.exit(app.exec_())
+    app = QtWidgets.QApplication(sys.argv)
+    plotter = RealTimePlotter()
+    plotter.show()
+    sys.exit(app.exec_())
