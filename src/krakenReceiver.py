@@ -15,18 +15,24 @@ from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
 
 class KrakenReceiver():
-    def __init__(self, center_freq, num_samples, sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=5):
+    def __init__(self, center_freq, num_samples, sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=5, simulation = 0):
         self.num_devices = num_devices
         self.center_freq = center_freq
         self.num_samples = num_samples
         self.sample_rate = sample_rate
         self.bandwidth = bandwidth
         self.gain = gain
-        self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64)
-        #self.buffer = signals([self.center_freq], [90] ,self.num_devices, self.num_samples)
         self.devices, self.streams = self._setup_devices()
         #for i in range(self.num_devices):
            #print(self.devices[i].getStreamMTU(self.streams[i]))
+
+        self.simulation = simulation
+
+        if simulation:
+            self.buffer = signals([self.center_freq], [90] ,self.num_devices, self.num_samples)
+        else:
+            self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64)
+        
         self.x = x * antenna_distance
         self.y = y
 
@@ -40,21 +46,37 @@ class KrakenReceiver():
         # fc = self.center_freq
         # fs = 4*fc
         # fn = 0.5*fs
-        # bandwidth = 0.2*fc
-        # wn = [np.finfo(float).eps, (bandwidth/2) / fn] 
-        # sos = signal.butter(4, wn, btype='bandpass', output='sos')
+        # f_bandwidth = 0.6*fc
+        # wn = [(f_bandwidth/2) / fn]
+        # wn = [np.finfo(float).eps, (f_bandwidth/2) / fn] 
+        # sos = signal.butter(0, wn, btype='lowpass', output='sos')
         # self.filter = sos
 
 
-        numtaps = 101  # Number of filter taps (filter length)
-        fc = self.center_freq
-        fs = 4*fc
-        bandwidth = 0.1*fc
-        highcut = bandwidth/2  # Upper cutoff frequency (Hz)
+        # numtaps = 7  # Number of filter taps (filter length)
+        # fc = self.center_freq
+        # fs = 4*fc
+        # bandwidth = 0.3*fc
+        # highcut = bandwidth/2  # Upper cutoff frequency (Hz)
+        # taps = signal.firwin(numtaps, [highcut], fs=fs, pass_zero=True)
+        # self.filter = taps
 
-        # Design a band-pass FIR filter using the firwin function
-        taps = signal.firwin(numtaps, [highcut], fs=fs, pass_zero=True, window='hamming')
-        self.filter = taps
+        #Design a band-pass FIR filter using the firwin function
+        num = [1.0, 1.0]
+        den = [1.0, 1.0]
+        #system = signal.lti(num, den)
+
+        #(b, a) = signal.TransferFunction(num, den)
+        
+        # Convert to discrete-time system
+        dt = 1e-6
+        discrete_system = signal.cont2discrete((num, den), dt)
+        #self.b, self.a = discrete_system[0], discrete_system[1]
+        self.b = np.array(discrete_system[0].flatten(), dtype=np.float64)
+        self.a = np.array(discrete_system[1].flatten(), dtype=np.float64)
+
+        
+        
 
         # Compute the frequency response of the filter
         #freq_response = np.abs(np.fft.fft(taps, 1000))  # Compute FFT and take magnitude
@@ -126,9 +148,11 @@ class KrakenReceiver():
             futures = [executor.submit(self._read_stream, i, start_time_ns) for i in range(self.num_devices)]
             for future in futures:
                 future.result()
-    
-        self.buffer = signal.lfilter(self.filter, 1.0, self.buffer)
-        self.buffer = self.buffer*self.offs
+
+        self.buffer = signal.lfilter(self.b, self.a, self.buffer)
+        #self.buffer = signal.lfilter(self.filter, 1.0, self.buffer)
+        #self.buffer = signal.sosfilt(self.filter, self.buffer)
+        # self.buffer = self.buffer*self.offs
         # if len(self.cal_data_x) == len(self.cal_data_y):
         #     print(stats.linregress(self.cal_data_x, self.cal_data_y))
         # else:
@@ -234,6 +258,7 @@ def signals(frequencies, angles, num_sensors, num_snapshots, wavelength=1.0, noi
     signals = np.zeros((num_sensors, num_snapshots), dtype=complex)
     frequency_offset = frequencies[0]
 
+
     for f, angle in zip(frequencies, angles):
         f_cal = f - frequency_offset
         signal = np.exp(1j * 2 * np.pi * f_cal * np.arange(num_snapshots) / num_snapshots)
@@ -277,16 +302,22 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.layout.addWidget(self.fft_plot_2, 1, 1, 1, 1)
         
     def update_plots(self):
-        kraken.read_streams()
-        #kraken.buffer = signals([kraken.center_freq], [180] ,kraken.num_devices, kraken.num_samples)
+
+        if kraken.simulation:
+            kraken.buffer = signals([kraken.center_freq], [180] ,kraken.num_devices, kraken.num_samples)
+        else:
+            kraken.read_streams()
+
+        kraken.buffer = signal.lfilter(kraken.b, kraken.a, kraken.buffer)
         #kraken.buffer = signal.lfilter(kraken.filter, 1.0, kraken.buffer)
+        #kraken.buffer = signal.sosfilt(kraken.filter, kraken.buffer)
+
         doa_data = kraken.music()
         doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
         #print(np.sum(kraken.filter)) #np.argmax(doa_data))
         
-        num_samples = len(kraken.buffer[0])
-        sample_rate = 1000  # Assuming a sample rate of 1000 Hz
-        freqs = np.fft.fftfreq(num_samples, d=1/sample_rate)
+        sample_rate = 1024*128  # Assuming a sample rate of 1000 Hz
+        freqs = np.fft.fftfreq(kraken.num_samples, d=1/sample_rate)
         
         ant0 = np.abs(fft(kraken.buffer[0]))
         ant1 = np.abs(fft(kraken.buffer[1]))
@@ -308,7 +339,7 @@ if __name__ == '__main__':
     antenna_distance = 0.725
 
     kraken = KrakenReceiver(center_freq, num_samples, 
-                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3)
+                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3, simulation = 0)
     # while True:
     #     kraken.read_streams()
     #     print(np.argmax(kraken.music()))
