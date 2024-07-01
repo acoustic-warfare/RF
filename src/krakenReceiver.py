@@ -54,8 +54,6 @@ class KrakenReceiver():
         self.gain = gain
         self.f_type = f_type
         self.devices, self.streams = self._setup_devices()
-        #for i in range(self.num_devices):
-           #print(self.devices[i].getStreamMTU(self.streams[i]))
 
         self.simulation = simulation
 
@@ -181,6 +179,9 @@ class KrakenReceiver():
         ValueError:
             If an error occurs while reading the stream (e.g., timeout, overflow).
         """
+        status = self.devices[device].readStreamStatus()
+        if status != 0:
+            raise ValueError(f"Stream status {status}")
         sr = self.devices[device].readStream(self.streams[device], [self.buffer[device]], 
                                             self.num_samples, 0,timestamp)
         
@@ -369,9 +370,41 @@ def get_device_info():
             print(device_args)
             device = sp.Device(device_args)
             device_info['sample_rate_range'] = device.getSampleRateRange(SOAPY_SDR_RX, 0)
+            device_info['sample_rate'] = device.getSampleRate(SOAPY_SDR_RX, 0)
+            device_info['list_sample_rates'] = device.listSampleRates(SOAPY_SDR_RX, 0)
             device_info['frequency_range'] = device.getFrequencyRange(SOAPY_SDR_RX, 0)
-            device_info['gain_range'] = device.getGainRange(SOAPY_SDR_RX, 0)
+            device_info['has_frequency_correction'] = device.hasFrequencyCorrection(SOAPY_SDR_RX, 0)
+            device_info['get_frequency_correction'] = device.getFrequencyCorrection(SOAPY_SDR_RX, 0)
+            device_info['get_frequency'] = device.getFrequency()
             device_info['bandwidth_range'] = device.getBandwidthRange(SOAPY_SDR_RX, 0)
+            device_info['list_bandwidths'] = device.listBandwidths(SOAPY_SDR_RX, 0)
+            device_info['get_bandwidths'] = device.getBandwidth(SOAPY_SDR_RX, 0)
+            device_info['gain_range'] = device.getGainRange(SOAPY_SDR_RX, 0)
+            device_info['has_gain_mode'] = device.hasGainMode(SOAPY_SDR_RX, 0)
+            device_info['gain_mode'] = device.getGainMode(SOAPY_SDR_RX, 0)
+            device_info['list_clock_sources'] = device.listClockSources()
+            device_info['get_master_clock_rate'] = device.getMasterClockRate()
+            device_info['get_master_clock_rates'] = device.getMasterClockRates()
+            device_info['get_reference_clock_rate'] = device.getReferenceClockRate()
+            device_info['get_reference_clock_rates'] = device.getReferenceClockRates()
+            device_info['get_clock_source'] = device.getClockSource()
+            device_info['has_hardware_time'] = device.hasHardwareTime()
+            device_info['list_time_sources'] = device.listTimeSources()
+            device_info['get_time_source'] = device.getTimeSource()
+            device_info['list_antennas'] = device.listAntennas(SOAPY_SDR_RX, 0)
+            device_info['get_antenna'] = device.getAntenna(SOAPY_SDR_RX, 0)
+            device_info['has_dc_offset_mode'] = device.hasDCOffsetMode(SOAPY_SDR_RX, 0)
+            device_info['get_dc_offset_mode'] = device.getDCOffsetMode(SOAPY_SDR_RX, 0)
+            device_info['has_dc_offset'] = device.hasDCOffset(SOAPY_SDR_RX, 0)
+            device_info['get_dc_offset'] = device.getDCOffset(SOAPY_SDR_RX, 0)
+            device_info['has_iq_balance_mode'] = device.hasIQBalanceMode(SOAPY_SDR_RX, 0)
+            device_info['get_iq_balance_mode'] = device.getIQBalanceMode(SOAPY_SDR_RX, 0)
+            device_info['has_iq_balance'] = device.hasIQBalance(SOAPY_SDR_RX, 0)
+            device_info['get_iq_balance'] = device.getIQBalance(SOAPY_SDR_RX, 0)
+            device_info['list_gpio_banks'] = device.listGPIOBanks()
+            device_info['list_uart'] = device.listUARTs()
+            device_info['get_native_stream_format'] = device.getNativeStreamFormat(SOAPY_SDR_RX, 0)
+
 
             print(f"Device {i}:")
             for key, value in device_info.items():
@@ -513,12 +546,14 @@ if __name__ == '__main__':
 
     kraken = KrakenReceiver(center_freq, num_samples, 
                            sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3, simulation = 0, f_type = 'LTI')
+    
+    get_device_info(kraken)
     # while True:
     #     kraken.read_streams()
     #     print(np.argmax(kraken.music()))
     #kraken.read_streams()
     #kraken.plot_fft()
-    app = QtWidgets.QApplication(sys.argv)
-    plotter = RealTimePlotter()
-    plotter.show()
-    sys.exit(app.exec_())
+    # app = QtWidgets.QApplication(sys.argv)
+    # plotter = RealTimePlotter()
+    # plotter.show()
+    # sys.exit(app.exec_())
