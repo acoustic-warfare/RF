@@ -180,7 +180,7 @@ class KrakenReceiver():
             If an error occurs while reading the stream (e.g., timeout, overflow).
         """
         sr = self.devices[device].readStream(self.streams[device], [self.buffer[device]], 
-                                            self.num_samples, 0,timestamp)
+                                            self.num_samples, 0, timestamp)
         
         ret = sr.ret
 
