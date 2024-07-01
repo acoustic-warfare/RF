@@ -99,12 +99,9 @@ class KrakenReceiver():
             discrete_system = signal.cont2discrete((num, den), dt)
             #self.b, self.a = discrete_system[0], discrete_system[1]
             self.b = np.array(discrete_system[0].flatten(), dtype=np.float64)
-            self.a = np.array(discrete_system[1].flatten(), dtype=np.float64)
+            self.a = np.array(discrete_system[1].flatten(), dtype=np.float64)    
 
-        
-        
-
-    def _setup_device(self, device_args):
+    def _setup_device(self, device_args, hw_time):
         """
         Set up a receiver device with specified parameters.
 
@@ -122,6 +119,7 @@ class KrakenReceiver():
         device.setFrequency(SOAPY_SDR_RX, 0, self.center_freq)
         device.setGain(SOAPY_SDR_RX, 0, self.gain)
         device.setBandwidth(SOAPY_SDR_RX, 0, self.bandwidth)
+        device.setHardwareTime(hw_time)
         return device
     
     
@@ -145,8 +143,10 @@ class KrakenReceiver():
         
         available_devices = (available_devices[1:] + available_devices[:1])[:self.num_devices]
 
+        hw_time = int((time.time() * 1e9) + 5e9)
+
         for i, device_args in enumerate(available_devices):
-            device = self._setup_device(device_args)
+            device = self._setup_device(device_args, hw_time)
             devices[i] = device
             rx_stream = device.setupStream(SOAPY_SDR_RX, SOAPY_SDR_CF32, [0])
             msg = device.activateStream(rx_stream)
@@ -179,9 +179,6 @@ class KrakenReceiver():
         ValueError:
             If an error occurs while reading the stream (e.g., timeout, overflow).
         """
-        # status = self.devices[device].readStreamStatus()
-        # if status != 0:
-        #     raise ValueError(f"Stream status {status}")
         sr = self.devices[device].readStream(self.streams[device], [self.buffer[device]], 
                                             self.num_samples, 0,timestamp)
         
@@ -227,15 +224,6 @@ class KrakenReceiver():
             futures = [executor.submit(self._read_stream, i, start_time_ns) for i in range(self.num_devices)]
             for future in futures:
                 future.result()
-        
-        # if len(self.cal_data_x) == len(self.cal_data_y):
-        #     print(stats.linregress(self.cal_data_x, self.cal_data_y))
-        # else:
-        #     self.buff_boi = fft(self.buffer[0])
-        #     self.cal_data_y.append(np.max(np.abs(self.buff_boi)))
-        #     print(f'Len y: {len(self.cal_data_y)} Len x: {len(self.cal_data_x)}')
-        #self.buffer = signal.lfilter(self.filter, 1.0, self.buffer)'
-        
 
     def plot_fft(self):
         """
@@ -375,7 +363,6 @@ def get_device_info():
             device_info['frequency_range'] = device.getFrequencyRange(SOAPY_SDR_RX, 0)
             device_info['has_frequency_correction'] = device.hasFrequencyCorrection(SOAPY_SDR_RX, 0)
             device_info['get_frequency_correction'] = device.getFrequencyCorrection(SOAPY_SDR_RX, 0)
-            device_info['get_frequency'] = device.getFrequency()
             device_info['bandwidth_range'] = device.getBandwidthRange(SOAPY_SDR_RX, 0)
             device_info['list_bandwidths'] = device.listBandwidths(SOAPY_SDR_RX, 0)
             device_info['get_bandwidths'] = device.getBandwidth(SOAPY_SDR_RX, 0)
