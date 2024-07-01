@@ -90,10 +90,10 @@ class KrakenReceiver():
 
         elif f_type == 'LTI':
         
-            num = [1.0, 1.0]
-            den = [1.0, 1.0]
-            #system = signal.lti(num, den)
+            num = [1.0]
+            den = [1.0]
 
+            #system = signal.lti(num, den)
             #(b, a) = signal.TransferFunction(num, den)
             
             # Convert to discrete-time system
@@ -226,12 +226,7 @@ class KrakenReceiver():
             futures = [executor.submit(self._read_stream, i, start_time_ns) for i in range(self.num_devices)]
             for future in futures:
                 future.result()
-
-        #self.apply_filter()
-
-        #self.buffer = signal.lfilter(self.filter, 1.0, self.buffer)
-        #self.buffer = signal.sosfilt(self.filter, self.buffer)
-        # self.buffer = self.buffer*self.offs
+        
         # if len(self.cal_data_x) == len(self.cal_data_y):
         #     print(stats.linregress(self.cal_data_x, self.cal_data_y))
         # else:
@@ -485,6 +480,8 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             kraken.buffer = signals([kraken.center_freq], [180] ,kraken.num_devices, kraken.num_samples)
         else:
             kraken.read_streams()
+
+        #print(kraken.buffer[0][0])
 
         kraken.apply_filter()
 
