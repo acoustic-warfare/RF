@@ -13,9 +13,7 @@ from scipy.fft import fft
 from concurrent.futures import ThreadPoolExecutor
 
 class KrakenReceiver():
-<<<<<<< HEAD
-    def __init__(self, center_freq, num_samples, sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=5, simulation = 0):
-=======
+
     """
     Represents a Kraken receiver system for signal processing.
 
@@ -47,14 +45,14 @@ class KrakenReceiver():
     filter : scipy filter object
         A signal processing filter
     """
-    def __init__(self, center_freq, num_samples, sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=5):
->>>>>>> 6ccf54c1e1b03af7949cada0c567a7d9c32170e6
+    def __init__(self, center_freq, num_samples, sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=5, simulation = 0, f_type = 'LTI'):
         self.num_devices = num_devices
         self.center_freq = center_freq
         self.num_samples = num_samples
         self.sample_rate = sample_rate
         self.bandwidth = bandwidth
         self.gain = gain
+        self.f_type = f_type
         self.devices, self.streams = self._setup_devices()
         #for i in range(self.num_devices):
            #print(self.devices[i].getStreamMTU(self.streams[i]))
@@ -69,38 +67,41 @@ class KrakenReceiver():
         self.x = x * antenna_distance
         self.y = y
 
-        #Build digital filter
-        # fc = self.center_freq
-        # fs = 4*fc
-        # fn = 0.5*fs
-        # f_bandwidth = 0.6*fc
-        # wn = [(f_bandwidth/2) / fn]
-        # wn = [np.finfo(float).eps, (f_bandwidth/2) / fn] 
-        # sos = signal.butter(0, wn, btype='lowpass', output='sos')
-        # self.filter = sos
+        if f_type == 'butter':
+            #Build digital filter
+            fc = self.center_freq
+            fs = 4*fc
+            fn = 0.5*fs
+            f_bandwidth = 0.6*fc
+            wn = [(f_bandwidth/2) / fn]
+            wn = [np.finfo(float).eps, (f_bandwidth/2) / fn] 
+            sos = signal.butter(0, wn, btype='lowpass', output='sos')
+            self.filter = sos
 
+        elif f_type == 'FIR':
+            #Design a FIR filter using the firwin function
+            numtaps = 7  # Number of filter taps (filter length)
+            fc = self.center_freq
+            fs = 4*fc
+            bandwidth = 0.3*fc
+            highcut = bandwidth/2  # Upper cutoff frequency (Hz)
+            taps = signal.firwin(numtaps, [highcut], fs=fs, pass_zero=True)
+            self.filter = taps
 
-        # numtaps = 7  # Number of filter taps (filter length)
-        # fc = self.center_freq
-        # fs = 4*fc
-        # bandwidth = 0.3*fc
-        # highcut = bandwidth/2  # Upper cutoff frequency (Hz)
-        # taps = signal.firwin(numtaps, [highcut], fs=fs, pass_zero=True)
-        # self.filter = taps
-
-        #Design a band-pass FIR filter using the firwin function
-        num = [1.0, 1.0]
-        den = [1.0, 1.0]
-        #system = signal.lti(num, den)
-
-        #(b, a) = signal.TransferFunction(num, den)
+        elif f_type == 'LTI':
         
-        # Convert to discrete-time system
-        dt = 1e-6
-        discrete_system = signal.cont2discrete((num, den), dt)
-        #self.b, self.a = discrete_system[0], discrete_system[1]
-        self.b = np.array(discrete_system[0].flatten(), dtype=np.float64)
-        self.a = np.array(discrete_system[1].flatten(), dtype=np.float64)
+            num = [1.0, 1.0]
+            den = [1.0, 1.0]
+            #system = signal.lti(num, den)
+
+            #(b, a) = signal.TransferFunction(num, den)
+            
+            # Convert to discrete-time system
+            dt = 1e-6
+            discrete_system = signal.cont2discrete((num, den), dt)
+            #self.b, self.a = discrete_system[0], discrete_system[1]
+            self.b = np.array(discrete_system[0].flatten(), dtype=np.float64)
+            self.a = np.array(discrete_system[1].flatten(), dtype=np.float64)
 
         
         
@@ -204,6 +205,14 @@ class KrakenReceiver():
             
         #print(f"Device {device}: \n Samples = {sr.ret} \n Flag = {sr.flags}\n")
 
+    def apply_filter(self):
+        if self.f_type == 'LTI':
+            self.buffer = signal.lfilter(self.b, self.a, self.buffer)
+        elif self.f_type == 'butter':
+            self.buffer = signal.sosfilt(self.filter, self.buffer)
+        elif self.f_type == 'FIR':
+            self.buffer = signal.lfilter(self.filter, 1.0, self.buffer)
+
     def read_streams(self):
         """
         Reads data from all receiver devices and filters the captured signals.
@@ -217,9 +226,9 @@ class KrakenReceiver():
             futures = [executor.submit(self._read_stream, i, start_time_ns) for i in range(self.num_devices)]
             for future in futures:
                 future.result()
-<<<<<<< HEAD
 
-        self.buffer = signal.lfilter(self.b, self.a, self.buffer)
+        #self.apply_filter()
+
         #self.buffer = signal.lfilter(self.filter, 1.0, self.buffer)
         #self.buffer = signal.sosfilt(self.filter, self.buffer)
         # self.buffer = self.buffer*self.offs
@@ -229,12 +238,9 @@ class KrakenReceiver():
         #     self.buff_boi = fft(self.buffer[0])
         #     self.cal_data_y.append(np.max(np.abs(self.buff_boi)))
         #     print(f'Len y: {len(self.cal_data_y)} Len x: {len(self.cal_data_x)}')
-
-=======
-    
-        self.buffer = signal.lfilter(self.filter, 1.0, self.buffer)
+        #self.buffer = signal.lfilter(self.filter, 1.0, self.buffer)'
         
->>>>>>> 6ccf54c1e1b03af7949cada0c567a7d9c32170e6
+
     def plot_fft(self):
         """
         Plots the FFT and phase of received signals for each channel.
@@ -466,15 +472,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.layout.addWidget(self.fft_plot_2, 1, 1, 1, 1)
         
     def update_plots(self):
-<<<<<<< HEAD
 
-        if kraken.simulation:
-            kraken.buffer = signals([kraken.center_freq], [180] ,kraken.num_devices, kraken.num_samples)
-        else:
-            kraken.read_streams()
-
-        kraken.buffer = signal.lfilter(kraken.b, kraken.a, kraken.buffer)
-=======
         """
         Updates the direction of arrival (DOA) and FFT plots with real-time data.
 
@@ -482,11 +480,13 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         Performs DOA estimation using the MUSIC algorithm, computes FFTs of received signals,
         and updates the corresponding PlotWidget curves (`doa_curve`, `fft_curve_0`, `fft_curve_1`, `fft_curve_2`).
         """
-        kraken.read_streams()
-        #kraken.buffer = signals([kraken.center_freq], [180] ,kraken.num_devices, kraken.num_samples)
->>>>>>> 6ccf54c1e1b03af7949cada0c567a7d9c32170e6
-        #kraken.buffer = signal.lfilter(kraken.filter, 1.0, kraken.buffer)
-        #kraken.buffer = signal.sosfilt(kraken.filter, kraken.buffer)
+
+        if kraken.simulation:
+            kraken.buffer = signals([kraken.center_freq], [180] ,kraken.num_devices, kraken.num_samples)
+        else:
+            kraken.read_streams()
+
+        kraken.apply_filter()
 
         doa_data = kraken.music()
         doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
@@ -515,7 +515,7 @@ if __name__ == '__main__':
     antenna_distance = 0.725
 
     kraken = KrakenReceiver(center_freq, num_samples, 
-                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3, simulation = 0)
+                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3, simulation = 0, f_type = 'LTI')
     # while True:
     #     kraken.read_streams()
     #     print(np.argmax(kraken.music()))
