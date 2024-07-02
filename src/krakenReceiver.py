@@ -565,9 +565,6 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         else:
             kraken.read_streams()
 
-        a_max = np.max(kraken.buffer[0])
-        print(np.where(kraken.buffer[0] == a_max))
-
         kraken.apply_filter()
 
         doa_data = kraken.music()
@@ -579,6 +576,11 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         ant0 = np.abs(fft(kraken.buffer[0]))
         ant1 = np.abs(fft(kraken.buffer[1]))
         ant2 = np.abs(fft(kraken.buffer[2]))
+        
+        a_max = np.max(ant0)
+        n_max = np.where(ant0 == a_max)[0]
+        print('index = {n_max}')
+        print('value = {ant0[n_max]}')
         
         self.plot_doa_circle(doa_data)
         self.fft_curve_0.setData(freqs, ant0)
