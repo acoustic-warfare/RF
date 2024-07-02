@@ -6,7 +6,7 @@ import numpy as np #use numpy for buffers
 results = SoapySDR.Device.enumerate()# {"driver": "hackrf"})
 for result in results: print(result)
 
-exit(0)
+#exit(0)
 
 #create device instance
 #args can be user defined or from the enumeration result
@@ -40,7 +40,7 @@ iq0 = np.array(i0 + 1j * q0, np.complex64)
 #buff = numpy.array([0]*1024, numpy.complex64)
 
 #receive some samples
-for i in range(2**12):
+while True:
     sr = sdr.writeStream(txStream, [iq0], len(iq0))
     print(sr.ret) #num samples or error code
     print(sr.flags) #flags set by receive operation
