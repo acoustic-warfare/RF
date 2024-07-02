@@ -281,7 +281,7 @@ class KrakenReceiver():
         #smoothed_buffer = pa.spatial_smoothing(self.buffer, 2, direction = 'forward-backward')
         spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
         spatial_corr_matrix = pa.forward_backward_avg(spatial_corr_matrix)
-        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0, self.detection_range))
+        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2, self.detection_range/2))
         doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=1)
 
         return doa
@@ -295,7 +295,7 @@ class KrakenReceiver():
             Array of estimated DOA angles in degrees.
         """
         spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
-        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0, self.detection_range))
+        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2, self.detection_range/2))
         doa = pa.DOA_MEM(spatial_corr_matrix,scanning_vectors)
 
         return doa
@@ -309,7 +309,7 @@ class KrakenReceiver():
             Array of estimated DOA angles in degrees.
         """
         spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
-        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0, self.detection_range))
+        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2, self.detection_range/2))
         doa = pa.DOA_Capon(spatial_corr_matrix,scanning_vectors)
 
         return doa
@@ -323,7 +323,7 @@ class KrakenReceiver():
             Array of estimated DOA angles in degrees.
         """
         spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
-        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0, self.detection_range))
+        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2, self.detection_range/2))
         doa = pa.DOA_Bartlett(spatial_corr_matrix,scanning_vectors)
 
         return doa
@@ -341,7 +341,7 @@ class KrakenReceiver():
             Array of estimated DOA angles in degrees.
         """
         spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
-        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0, self.detection_range))
+        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2, self.detection_range/2))
         doa = pa.DOA_LPM(spatial_corr_matrix,scanning_vectors, element_select)
 
         return doa
@@ -572,7 +572,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
 
         doa_data = kraken.music()
         doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
-        #print(np.sum(kraken.filter)) #np.argmax(doa_data))
+        #print(np.sum(kraken.filter)) 
         
         freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.sample_rate)
         
