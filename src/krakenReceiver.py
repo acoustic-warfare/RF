@@ -500,18 +500,18 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         angle_ticks = np.linspace(0, 2 * np.pi, 180)
         radius = 1
 
-        # Plot the circle
+        #Plot the circle
         x = radius * np.cos(angle_ticks)
         y = radius * np.sin(angle_ticks)
         self.doa_plot.plot(x, y, pen=pg.mkPen('b', width=2))
 
-        # Add direction lines (every 20 degrees)
+        #Add direction lines (every 20 degrees)
         for angle in np.linspace(0, 2 * np.pi, 18, endpoint=False):
             x_line = [0, radius * np.cos(angle)]
             y_line = [0, radius * np.sin(angle)]
             self.doa_plot.plot(x_line, y_line, pen=pg.mkPen('r', width=1))
 
-        # Add labels (every 20 degrees)
+        #Add labels (every 20 degrees)
         for angle in np.linspace(0, 2 * np.pi, 18, endpoint=False):
             text = f'{int(np.ceil(np.degrees(angle)))}°'
             text_item = pg.TextItem(text, anchor=(0.5, 0.5))
