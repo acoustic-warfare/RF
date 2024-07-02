@@ -78,7 +78,7 @@ class KrakenReceiver():
 
         elif f_type == 'FIR':
             #Design a FIR filter using the firwin function
-            numtaps = 7  # Number of filter taps (filter length)
+            numtaps = 51  # Number of filter taps (filter length)
             fc = self.center_freq
             fs = 4*fc
             bandwidth = 0.3*fc
@@ -179,6 +179,8 @@ class KrakenReceiver():
         ValueError:
             If an error occurs while reading the stream (e.g., timeout, overflow).
         """
+        #self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64)
+        
         sr = self.devices[device].readStream(self.streams[device], [self.buffer[device]], 
                                             self.num_samples, 0,timestamp)
         
@@ -204,7 +206,9 @@ class KrakenReceiver():
         #print(f"Device {device}: \n Samples = {sr.ret} \n Flag = {sr.flags}\n")
 
     def apply_filter(self):
-        if self.f_type == 'LTI':
+        if self.f_type == 'none': 
+            pass
+        elif self.f_type == 'LTI':
             self.buffer = signal.lfilter(self.b, self.a, self.buffer)
         elif self.f_type == 'butter':
             self.buffer = signal.sosfilt(self.filter, self.buffer)
@@ -501,7 +505,8 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         else:
             kraken.read_streams()
 
-        #print(kraken.buffer[0][0])
+        a_max = np.max(kraken.buffer[0])
+        print(np.where(kraken.buffer[0] == a_max))
 
         kraken.apply_filter()
 
@@ -526,15 +531,15 @@ class RealTimePlotter(QtWidgets.QMainWindow):
 if __name__ == '__main__':
     num_samples = 1024*128
     sample_rate = 2.048e6
-    center_freq = 103.3e6
+    center_freq = 434.4e6
     bandwidth =  2e5 
     gain = 40
     y = np.array([0,0,0])
     x = np.array([0,1,2])
-    antenna_distance = 0.725
+    antenna_distance = 0.35
 
     kraken = KrakenReceiver(center_freq, num_samples, 
-                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3, simulation = 0, f_type = 'LTI')
+                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3, simulation = 0, f_type = 'none')
     
     #get_device_info()
     # while True:
