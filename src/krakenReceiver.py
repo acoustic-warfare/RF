@@ -45,7 +45,9 @@ class KrakenReceiver():
     filter : scipy filter object
         A signal processing filter
     """
-    def __init__(self, center_freq, num_samples, sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=5, simulation = 0, f_type = 'LTI'):
+    def __init__(self, center_freq, num_samples, sample_rate, bandwidth, gain, antenna_distance, x, y, 
+                 num_devices=5, simulation = 0, f_type = 'LTI', detection_range = 360):
+        
         self.num_devices = num_devices
         self.center_freq = center_freq
         self.num_samples = num_samples
@@ -64,6 +66,7 @@ class KrakenReceiver():
         
         self.x = x * antenna_distance
         self.y = y * antenna_distance
+        self.detection_range = detection_range
 
         if f_type == 'butter':
             #Build digital filter
@@ -278,7 +281,7 @@ class KrakenReceiver():
         #smoothed_buffer = pa.spatial_smoothing(self.buffer, 2, direction = 'forward-backward')
         spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
         spatial_corr_matrix = pa.forward_backward_avg(spatial_corr_matrix)
-        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0,360))
+        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0, self.detection_range))
         doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=1)
 
         return doa
@@ -292,7 +295,7 @@ class KrakenReceiver():
             Array of estimated DOA angles in degrees.
         """
         spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
-        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0,180))
+        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0, self.detection_range))
         doa = pa.DOA_MEM(spatial_corr_matrix,scanning_vectors)
 
         return doa
@@ -306,7 +309,7 @@ class KrakenReceiver():
             Array of estimated DOA angles in degrees.
         """
         spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
-        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0,180))
+        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0, self.detection_range))
         doa = pa.DOA_Capon(spatial_corr_matrix,scanning_vectors)
 
         return doa
@@ -320,7 +323,7 @@ class KrakenReceiver():
             Array of estimated DOA angles in degrees.
         """
         spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
-        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0,180))
+        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0, self.detection_range))
         doa = pa.DOA_Bartlett(spatial_corr_matrix,scanning_vectors)
 
         return doa
@@ -338,7 +341,7 @@ class KrakenReceiver():
             Array of estimated DOA angles in degrees.
         """
         spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
-        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0,180))
+        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0, self.detection_range))
         doa = pa.DOA_LPM(spatial_corr_matrix,scanning_vectors, element_select)
 
         return doa
@@ -530,12 +533,11 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         - doa_data (numpy.ndarray): Array of DOA data values, typically normalized between 0 and 1.
         If len(doa_data) == 180, the data is mirrored to cover 360 degrees.
         """
-        # if len(doa_data) == 180:
-        #     raise ValueError("doa data len 180")
-        #     #Mirror the data to cover 360 degrees
-        #     doa_data = np.concatenate((doa_data, doa_data[::-1]))
+        if len(doa_data) == 180:
+            #Mirror the data to cover 360 degrees
+            doa_data = np.concatenate((doa_data, doa_data[::-1]))
 
-        angles = np.linspace(0, 2* np.pi, len(doa_data))
+        angles = np.linspace(0, 2 * np.pi, len(doa_data))
         x_values = doa_data * np.cos(angles)
         y_values = doa_data * np.sin(angles)
 
@@ -597,7 +599,7 @@ if __name__ == '__main__':
     antenna_distance = 0.35
 
     kraken = KrakenReceiver(center_freq, num_samples, 
-                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3, simulation = 0, f_type = 'none')
+                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3, simulation = 0, f_type = 'none', detection_range=360)
     
     app = QtWidgets.QApplication(sys.argv)
     plotter = RealTimePlotter()
