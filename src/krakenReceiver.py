@@ -63,7 +63,7 @@ class KrakenReceiver():
             self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64)
         
         self.x = x * antenna_distance
-        self.y = y
+        self.y = y * antenna_distance
 
         if f_type == 'butter':
             #Build digital filter
@@ -278,7 +278,7 @@ class KrakenReceiver():
         #smoothed_buffer = pa.spatial_smoothing(self.buffer, 2, direction = 'forward-backward')
         spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
         spatial_corr_matrix = pa.forward_backward_avg(spatial_corr_matrix)
-        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0,180))
+        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(0,360))
         doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=1)
 
         return doa
@@ -501,7 +501,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         The grid consists of a circle representing the outer boundary and direction lines
         spaced every 20 degrees, along with labeled text items indicating the angle in degrees.
         """
-        angle_ticks = np.linspace(0, 2 * np.pi, 180)
+        angle_ticks = np.linspace(0, 2 * np.pi, 360)
         radius = 1
 
         # Plot the circle
@@ -530,9 +530,10 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         - doa_data (numpy.ndarray): Array of DOA data values, typically normalized between 0 and 1.
         If len(doa_data) == 180, the data is mirrored to cover 360 degrees.
         """
-        if len(doa_data) == 180:
-            #Mirror the data to cover 360 degrees
-            doa_data = np.concatenate((doa_data, doa_data[::-1]))
+        # if len(doa_data) == 180:
+        #     raise ValueError("doa data len 180")
+        #     #Mirror the data to cover 360 degrees
+        #     doa_data = np.concatenate((doa_data, doa_data[::-1]))
 
         angles = np.linspace(0, 2* np.pi, len(doa_data))
         x_values = doa_data * np.cos(angles)
@@ -590,8 +591,8 @@ if __name__ == '__main__':
     center_freq = 434.4e6
     bandwidth =  2e5 
     gain = 40
-    y = np.array([0,0,0])
-    x = np.array([0,1,2])
+    y = np.array([0,0.866,0])
+    x = np.array([0,0.5,1])
     antenna_distance = 0.35
     antenna_distance = 0.35
 
