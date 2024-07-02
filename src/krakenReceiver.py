@@ -182,7 +182,7 @@ class KrakenReceiver():
         #self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64)
         
         sr = self.devices[device].readStream(self.streams[device], [self.buffer[device]], 
-                                            self.num_samples, 0,timestamp)
+                                            self.num_samples, 0, timestamp)
         
         ret = sr.ret
 
@@ -462,7 +462,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.update_plots)
         self.timer.start(0)
-        
+
     def initUI(self):
         """
         Sets up the user interface (UI) layout.
@@ -475,7 +475,9 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.layout = QtWidgets.QGridLayout(self.centralWidget)
         
         self.doa_plot = pg.PlotWidget(title="Direction of Arrival")
-        self.doa_curve = self.doa_plot.plot(pen='y')
+        self.doa_plot.setAspectLocked(True) 
+        self.doa_plot.showAxis('left', False) 
+        self.doa_plot.showAxis('bottom', False)
         self.layout.addWidget(self.doa_plot, 0, 0, 1, 1)
         
         self.fft_plot_0 = pg.PlotWidget(title="FFT Antenna 0")
@@ -489,9 +491,64 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.fft_plot_2 = pg.PlotWidget(title="FFT Antenna 2")
         self.fft_curve_2 = self.fft_plot_2.plot(pen='b')
         self.layout.addWidget(self.fft_plot_2, 1, 1, 1, 1)
-        
-    def update_plots(self):
 
+        self.create_polar_grid()
+        self.doa_curve = None  # Initialize doa_curve to None
+
+    def create_polar_grid(self):
+        """
+        Creates a polar grid on the Direction of Arrival (DOA) plot.
+        The grid consists of a circle representing the outer boundary and direction lines
+        spaced every 20 degrees, along with labeled text items indicating the angle in degrees.
+        """
+        angle_ticks = np.linspace(0, 2 * np.pi, 180)
+        radius = 1
+
+        # Plot the circle
+        x = radius * np.cos(angle_ticks)
+        y = radius * np.sin(angle_ticks)
+        self.doa_plot.plot(x, y, pen=pg.mkPen('b', width=2))
+
+        # Add direction lines (every 20 degrees)
+        for angle in np.linspace(0, 2 * np.pi, 18, endpoint=False):
+            x_line = [0, radius * np.cos(angle)]
+            y_line = [0, radius * np.sin(angle)]
+            self.doa_plot.plot(x_line, y_line, pen=pg.mkPen('r', width=1))
+
+        # Add labels (every 20 degrees)
+        for angle in np.linspace(0, 2 * np.pi, 18, endpoint=False):
+            text = f'{int(np.ceil(np.degrees(angle)))}°'
+            text_item = pg.TextItem(text, anchor=(0.5, 0.5))
+            text_item.setPos(1.1 * np.cos(angle), 1.1 * np.sin(angle))
+            self.doa_plot.addItem(text_item)
+
+    def plot_doa_circle(self, doa_data):
+        """
+        Plots the direction of arrival (DOA) circle based on provided DOA data.
+        
+        Args:
+        - doa_data (numpy.ndarray): Array of DOA data values, typically normalized between 0 and 1.
+        If len(doa_data) == 180, the data is mirrored to cover 360 degrees.
+        """
+        if len(doa_data) == 180:
+            #Mirror the data to cover 360 degrees
+            doa_data = np.concatenate((doa_data, doa_data[::-1]))
+
+        angles = np.linspace(0, 2* np.pi, len(doa_data))
+        x_values = doa_data * np.cos(angles)
+        y_values = doa_data * np.sin(angles)
+
+        #Close the polar plot loop
+        x_values = np.append(x_values, [0])
+        y_values = np.append(y_values, [0])
+
+        if self.doa_curve is not None:
+            self.doa_plot.removeItem(self.doa_curve)
+
+        self.doa_curve = self.doa_plot.plot(x_values, y_values, pen=pg.mkPen('y', width=2), 
+                                            fillLevel=0, brush=(255, 255, 0, 50))
+
+    def update_plots(self):
         """
         Updates the direction of arrival (DOA) and FFT plots with real-time data.
 
@@ -514,19 +571,18 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
         #print(np.sum(kraken.filter)) #np.argmax(doa_data))
         
-        sample_rate = 1024*128  # Assuming a sample rate of 1000 Hz
-        freqs = np.fft.fftfreq(kraken.num_samples, d=1/sample_rate)
+        freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.sample_rate)
         
         ant0 = np.abs(fft(kraken.buffer[0]))
         ant1 = np.abs(fft(kraken.buffer[1]))
         ant2 = np.abs(fft(kraken.buffer[2]))
         
-        self.doa_curve.setData(np.linspace(0, 179, 180), doa_data)
+        self.plot_doa_circle(doa_data)
         self.fft_curve_0.setData(freqs, ant0)
         self.fft_curve_1.setData(freqs, ant1)
         self.fft_curve_2.setData(freqs, ant2)
 
-        print(np.argmax(kraken.music()))
+        print(np.argmax(doa_data))
 
 if __name__ == '__main__':
     num_samples = 1024*128
@@ -537,15 +593,11 @@ if __name__ == '__main__':
     y = np.array([0,0,0])
     x = np.array([0,1,2])
     antenna_distance = 0.35
+    antenna_distance = 0.35
 
     kraken = KrakenReceiver(center_freq, num_samples, 
                            sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3, simulation = 0, f_type = 'none')
     
-    #get_device_info()
-    # while True:
-    #     kraken.read_streams()
-    #kraken.read_streams()
-    #kraken.plot_fft()
     app = QtWidgets.QApplication(sys.argv)
     plotter = RealTimePlotter()
     plotter.show()
