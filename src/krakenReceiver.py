@@ -58,15 +58,17 @@ class KrakenReceiver():
         self.devices, self.streams = (0,0) #self._setup_devices()
 
         self.simulation = simulation
-
-        if simulation:
-            self.buffer = signals([self.center_freq], [30] ,self.num_devices, self.num_samples)
-        else:
-            self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64)
-        
         self.x = x * antenna_distance
         self.y = y * antenna_distance
         self.detection_range = detection_range
+
+        if simulation:
+            self.buffer = signals_linear([self.center_freq], [30] ,self.num_devices, self.num_samples, self.x, antenna_distance)
+            #self.buffer = signals_circular([self.center_freq], [300] ,self.num_devices, self.num_samples, self.x, self.y, antenna_distance)
+        else:
+            self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64)
+        
+        
 
         if f_type == 'butter':
             #Build digital filter
@@ -406,7 +408,7 @@ def get_device_info():
 
         return device_info_list
 
-def signals(frequencies, angles, num_sensors, num_snapshots, wavelength=1.0, noise_power=1e-3):
+def signals_linear(frequencies, angles, num_sensors, num_snapshots, antenna_positions, antenna_distance, wavelength=1.0, noise_power=1e-3):
     """
     Generates signals received by sensor array.
 
@@ -430,8 +432,7 @@ def signals(frequencies, angles, num_sensors, num_snapshots, wavelength=1.0, noi
         over time (shape: (num_sensors, num_snapshots)).
 
     """
-    antenna_distance_m = 0.35
-    sensor_positions = np.array([0,1,2]) * antenna_distance_m
+    sensor_positions = antenna_positions * antenna_distance
     signals = np.zeros((num_sensors, num_snapshots), dtype=complex)
     frequency_offset = frequencies[0]
 
@@ -443,7 +444,50 @@ def signals(frequencies, angles, num_sensors, num_snapshots, wavelength=1.0, noi
         signals += steering_vector @ signal[np.newaxis, :]
     
     noise = np.sqrt(noise_power) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
-    return signals + 100 * noise
+    return signals + 600 * noise
+
+
+def signals_circular(frequencies, angles, num_sensors, num_snapshots, antenna_positions_x, antenna_positions_y , antenna_distance, wavelength=1.0, noise_power=1e-3):
+    """
+    Generates signals received by a circular sensor array.
+
+    Parameters:
+    frequencies : list
+        List of frequencies (in Hz) of the transmitted signals.
+    angles : list
+        List of angles (in degrees) of arrival corresponding to each frequency.
+    num_sensors : int
+        Number of sensors in the circular array.
+    num_snapshots : int
+        Number of signal snapshots to generate.
+    radius : float
+        Radius of the circular array.
+    wavelength : float, optional
+        Wavelength of the transmitted signals (default is 1.0).
+    noise_power : float, optional
+        Power of additive Gaussian noise (default is 1e-3).
+
+    Returns:
+    numpy.ndarray
+        2D array of complex numbers representing received signals at each sensor
+        over time (shape: (num_sensors, num_snapshots)).
+    """
+    sensor_positions_x = antenna_positions_x * antenna_distance
+    sensor_positions_y = antenna_positions_y * antenna_distance
+    
+    signals = np.zeros((num_sensors, num_snapshots), dtype=complex)
+    frequency_offset = frequencies[0]
+
+    for f, angle in zip(frequencies, angles):
+        f_cal = f - frequency_offset
+        signal = np.exp(1j * 2 * np.pi * f_cal * np.arange(num_snapshots) / num_snapshots)
+        angle_rad = np.radians(angle)
+        steering_vector = np.exp(1j * 2 * np.pi * (sensor_positions_x[:, np.newaxis] * np.cos(angle_rad) +
+                                                   sensor_positions_y[:, np.newaxis] * np.sin(angle_rad)) / wavelength)
+        signals += steering_vector @ signal[np.newaxis, :]
+    
+    noise = np.sqrt(noise_power) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
+    return signals #+ 100 * noise
     
 class RealTimePlotter(QtWidgets.QMainWindow):
     """
@@ -555,7 +599,8 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         """
 
         if kraken.simulation:
-            kraken.buffer = signals([kraken.center_freq], [45] ,kraken.num_devices, kraken.num_samples)
+            kraken.buffer = signals_linear([kraken.center_freq], [0] ,kraken.num_devices, kraken.num_samples, x, antenna_distance)
+            #kraken.buffer = signals_circular([kraken.center_freq], [310] ,kraken.num_devices, kraken.num_samples, x, y, antenna_distance)
         else:
             kraken.read_streams()
 
@@ -594,17 +639,17 @@ if __name__ == '__main__':
     ant3 = [-0.8090,   -0.5878]
     ant4 = [0.3090,   -0.9511]
     
-    y = np.array([ant0[1], ant1[1], ant2[1], ant3[1], ant4[1]])
-    x = np.array([ant0[0], ant1[0], ant2[0], ant3[0], ant4[0]])
-    antenna_distance = 0.148857 # actual antenna distance: 0.175
+    # y = np.array([ant0[1], ant1[1], ant2[1], ant3[1], ant4[1]])
+    # x = np.array([ant0[0], ant1[0], ant2[0], ant3[0], ant4[0]])
+    # antenna_distance = 0.148857 # actual antenna distance: 0.175
     
     # # Linear Setup
-    # y = np.array([0, 0, 0, 0, 0])
-    # x = np.array([0, 1, 2, 3, 4])
-    # antenna_distance = 0.35
+    y = np.array([0, 0, 0, 0, 0])
+    x = np.array([0, 1, 2, 3, 4])
+    antenna_distance = 0.175 #0.35
 
     kraken = KrakenReceiver(center_freq, num_samples, 
-                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3, simulation = 1, f_type = 'LTI', detection_range=360)
+                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=5, simulation = 1, f_type = 'FIR', detection_range=360)
     
     app = QtWidgets.QApplication(sys.argv)
     plotter = RealTimePlotter()
