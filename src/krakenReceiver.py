@@ -55,7 +55,7 @@ class KrakenReceiver():
         self.bandwidth = bandwidth
         self.gain = gain
         self.f_type = f_type
-        self.devices, self.streams = self._setup_devices()
+        self.devices, self.streams = (0,0) #self._setup_devices()
 
         self.simulation = simulation
 
@@ -229,108 +229,43 @@ class KrakenReceiver():
             futures = [executor.submit(self._read_stream, i, start_time_ns) for i in range(self.num_devices)]
             for future in futures:
                 future.result()
-
-    def spatial_smoothing(self, P, direction): 
-        """ 
+    
+    def spatial_smoothing_rewrite(self, P, direction): 
         
-            Calculates the forward and (or) backward spatially smoothed correlation matrix
-            
-        Parameters:
-        -----------
-            :param X : Received multichannel signal matrix from the antenna array.         
-            :param P : Size of the subarray
-            :param direction: 
+        M = self.num_devices
+        N = self.num_samples  
+        L = M - P + 1  # Number of subarrays    
 
-            :type X: N x M complex numpy array N is the number of samples, M is the number of antenna elements.
-            :type P : int
-            :type direction: string
-                
-        Return values:
-        -------------
-        
-            :return R_ss : Forward-backward averaged correlation matrix
-            :rtype R_ss: P x P complex numpy array    
-            
-            -1: direction parameter is invalid
-        """
-        # --input check--
-        N = np.size(self.buffer, 1)  # Number of samples 
-        M = np.size(self.buffer, 0)  # Number of antenna elements    
+        Rss = np.zeros((P, P), dtype=complex)  # Spatially smoothed correlation matrix 
 
-        if N < M:
-            print("WARNING: Number of antenna elements is greather than the number of time samples")
-            print("WARNING: You may flipped the input matrix")
-        L = M-P+1 # Number of subarrays     
-        Rss = np.zeros((P,P), dtype=complex) # Spatialy smoothed correlation matrix 
-        
         if direction == "forward" or direction == "forward-backward":            
             for l in range(L):             
-                Rxx = np.zeros((P,P), dtype=complex) # Correlation matrix allocation 
+                Rxx = np.zeros((P, P), dtype=complex)  # Correlation matrix allocation 
                 for n in np.arange(0,N,1): 
-                    Rxx += np.outer(self.buffer[l+P: n,l],np.conj(self.buffer[l+P: n,l])) 
-                np.divide(Rxx,N) # normalization 
-                Rss+=Rxx                 
+                    Rxx += np.outer(self.buffer[l:l+P, n], np.conj(self.buffer[l:l+P, n])) 
+                np.divide(Rxx, N)  # normalization 
+                Rss += Rxx 
+
         if direction == "backward" or direction == "forward-backward":         
             for l in range(L): 
-                Rxx = np.zeros((P,P), dtype=complex) # Correlation matrix allocation 
+                Rxx = np.zeros((P, P), dtype=complex)  # Correlation matrix allocation 
                 for n in np.arange(0,N,1): 
-                    d = np.conj(self.buffer[n,M-l-P:M-l] [::-1]) 
-                    Rxx += np.outer(d,np.conj(d)) 
-                np.divide(Rxx,N) # normalization 
-                Rss+=Rxx         
+                    d = np.conj(self.buffer[M-l-P:M-l, n][::-1]) 
+                    Rxx += np.outer(d, np.conj(d)) 
+                np.divide(Rxx, N)  # normalization 
+                Rss += Rxx 
+
         if not (direction == "forward" or direction == "backward" or direction == "forward-backward"):     
-            print("ERROR: Smoothing direction not recognized ! ") 
+            print("ERROR: Smoothing direction not recognized!") 
             return -1 
-        
+
         # normalization            
         if direction == "forward-backward": 
-            np.divide(Rss,2*L)  
+            np.divide(Rss, 2*L)  
         else: 
             np.divide(Rss,L)  
-            
-        return Rss 
-    
-    #  Rxx += np.outer(self.buffer[n,l:l+P],np.conj(self.buffer[n,l:l+P])) 
-    # Rxx = np.zeros((P,P), dtype=complex) # Correlation matrix allocation
-    # d = np.conj(self.buffer[n,M-l-P:M-l] [::-1]) 
 
-    def plot_fft(self):
-        """
-        Plots the FFT and phase of received signals for each channel.
-
-        Generates plots for each receiver device showing the FFT (amplitude)
-        and phase of the received signals.
-        """
-        if self.num_devices > 1:
-            fig, axes = plt.subplots(self.num_devices, 2, figsize=(18, 8 * self.num_devices))
-        else:
-            fig, axes = plt.subplots(1, 2, figsize=(18, 8))
-            axes = np.array([axes])  #Ensure axes is always a 2D array
-
-        for i in range(self.num_devices):
-            #FFT of the samples
-            freqs = np.fft.fftfreq(self.num_samples, d=1/self.sample_rate)
-            fft_samples = fft(self.buffer[i])
-            axes[i, 0].plot(freqs, np.abs(fft_samples))
-            axes[i, 0].grid()
-            axes[i, 0].set_title(f'FFT of Received Samples (Channel {i})')
-            axes[i, 0].set_xlabel('Frequency (Hz)')
-            axes[i, 0].set_ylabel('Amplitude')
-
-            #Phase of the samples
-            fft_samples[np.abs(fft_samples) < 2000] = 0
-            phases = np.angle(fft_samples, deg=True)
-            phases[np.angle(fft_samples) == 0] = np.NaN
-            axes[i, 1].plot(freqs, phases, 'o')
-            axes[i, 1].grid()
-            axes[i, 1].set_xlim(-self.sample_rate / 2, self.sample_rate / 2)
-            axes[i, 1].set_ylim(-180,180)
-            axes[i, 1].set_title(f'Phase of Received Samples (Channel {i})')
-            axes[i, 1].set_xlabel('Frequency (Hz)')
-            axes[i, 1].set_ylabel('Phase (radians)')
-
-        plt.tight_layout()
-        plt.show()
+        return Rss
 
     def music(self):
         """
@@ -340,9 +275,9 @@ class KrakenReceiver():
         numpy.ndarray
             Array of estimated DOA angles in degrees.
         """
-        smoothed_buffer = self.spatial_smoothing(2, 'forward-backward')
-        spatial_corr_matrix = np.dot(smoothed_buffer, smoothed_buffer.conj().T)
-        #spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
+        #smoothed_buffer = self.spatial_smoothing_rewrite(2, 'forward-backward')
+        #spatial_corr_matrix = np.dot(smoothed_buffer, smoothed_buffer.conj().T)
+        spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
         spatial_corr_matrix = pa.forward_backward_avg(spatial_corr_matrix)
         scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2, self.detection_range/2))
         doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=1)
