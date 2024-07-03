@@ -92,7 +92,7 @@ class KrakenReceiver():
         elif f_type == 'LTI':
         
             num = [0.0, 1.0]
-            den = [1e-6 , 1.0]
+            den = [4e-7, 1.0]
 
             #system = signal.lti(num, den)
             #(b, a) = signal.TransferFunction(num, den)
@@ -100,7 +100,7 @@ class KrakenReceiver():
             # Convert to discrete-time system
             dt = 1e-6
             discrete_system = signal.cont2discrete((num, den), dt)
-            #self.b, self.a = discrete_system[0], discrete_system[1]
+            #self.b, self.a = discrete_system[0], discrete_system[1]/home/ljudkriget/.local/lib/python3.10/site-packages/scipy/signal/_lti_conversion.py:74: BadCoefficients: Badly conditioned filter coefficients (numerator): the results may be meaningless
             self.b = np.array(discrete_system[0].flatten(), dtype=np.float64)
             self.a = np.array(discrete_system[1].flatten(), dtype=np.float64)    
 
@@ -577,11 +577,6 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         ant1 = np.abs(fft(kraken.buffer[1]))
         ant2 = np.abs(fft(kraken.buffer[2]))
         
-        a_max = np.max(ant0)
-        n_max = np.where(ant0 == a_max)[0]
-        print('index = {n_max}')
-        print('value = {ant0[n_max]}')
-        
         self.plot_doa_circle(doa_data)
         self.fft_curve_0.setData(freqs, ant0)
         self.fft_curve_1.setData(freqs, ant1)
@@ -601,7 +596,7 @@ if __name__ == '__main__':
     antenna_distance = 0.35
 
     kraken = KrakenReceiver(center_freq, num_samples, 
-                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3, simulation = 0, f_type = 'none', detection_range=360)
+                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3, simulation = 0, f_type = 'LTI', detection_range=360)
     
     app = QtWidgets.QApplication(sys.argv)
     plotter = RealTimePlotter()
