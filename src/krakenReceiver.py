@@ -340,7 +340,7 @@ class KrakenReceiver():
         numpy.ndarray
             Array of estimated DOA angles in degrees.
         """
-        smoothed_buffer = self.spatial_smoothing(2, 'forward-backward')
+        smoothed_buffer = self.buffer #self.spatial_smoothing(2, 'forward-backward')
         spatial_corr_matrix = np.dot(smoothed_buffer, smoothed_buffer.conj().T)
         #spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
         spatial_corr_matrix = pa.forward_backward_avg(spatial_corr_matrix)
@@ -642,22 +642,21 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.fft_curve_1.setData(freqs, ant1)
         self.fft_curve_2.setData(freqs, ant2)
 
-        print(doa_data)
+        #print(doa_data)
         print(np.argmax(doa_data))
 
 if __name__ == '__main__':
     num_samples = 1024*128
     sample_rate = 2.048e6
-    center_freq = 433e6
+    center_freq = 434.4e6
     bandwidth =  2e5 
     gain = 40
-    y = np.array([0,0,0])
-    x = np.array([0,1,2])
+    y = np.array([0, 0, 0])
+    x = np.array([0, 1, 2])
     antenna_distance = 0.35
 
     kraken = KrakenReceiver(center_freq, num_samples, 
-                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3, simulation = 1, f_type = 'LTI', detection_range=360)
-                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3, simulation = 0, f_type = 'LTI', detection_range=360)
+                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3, simulation = 0, f_type = 'none', detection_range=360)
     
     app = QtWidgets.QApplication(sys.argv)
     plotter = RealTimePlotter()
