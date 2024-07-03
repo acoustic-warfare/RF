@@ -60,7 +60,7 @@ class KrakenReceiver():
         self.simulation = simulation
 
         if simulation:
-            self.buffer = signals([self.center_freq], [90] ,self.num_devices, self.num_samples)
+            self.buffer = signals([self.center_freq], [30] ,self.num_devices, self.num_samples)
         else:
             self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64)
         
@@ -205,8 +205,6 @@ class KrakenReceiver():
                 raise ValueError("Encountered a stream time which was expired or too early to process")
             elif ret == SOAPY_SDR_UNDERFLOW:
                 raise ValueError("write caused an underflow condition")
-            
-        #print(f"Device {device}: \n Samples = {sr.ret} \n Flag = {sr.flags}\n")
 
     def apply_filter(self):
         if self.f_type == 'none': 
@@ -231,6 +229,70 @@ class KrakenReceiver():
             futures = [executor.submit(self._read_stream, i, start_time_ns) for i in range(self.num_devices)]
             for future in futures:
                 future.result()
+
+    def spatial_smoothing(self, P, direction): 
+        """ 
+        
+            Calculates the forward and (or) backward spatially smoothed correlation matrix
+            
+        Parameters:
+        -----------
+            :param X : Received multichannel signal matrix from the antenna array.         
+            :param P : Size of the subarray
+            :param direction: 
+
+            :type X: N x M complex numpy array N is the number of samples, M is the number of antenna elements.
+            :type P : int
+            :type direction: string
+                
+        Return values:
+        -------------
+        
+            :return R_ss : Forward-backward averaged correlation matrix
+            :rtype R_ss: P x P complex numpy array    
+            
+            -1: direction parameter is invalid
+        """
+        # --input check--
+        N = np.size(self.buffer, 1)  # Number of samples 
+        M = np.size(self.buffer, 0)  # Number of antenna elements    
+
+        if N < M:
+            print("WARNING: Number of antenna elements is greather than the number of time samples")
+            print("WARNING: You may flipped the input matrix")
+        L = M-P+1 # Number of subarrays     
+        Rss = np.zeros((P,P), dtype=complex) # Spatialy smoothed correlation matrix 
+        
+        if direction == "forward" or direction == "forward-backward":            
+            for l in range(L):             
+                Rxx = np.zeros((P,P), dtype=complex) # Correlation matrix allocation 
+                for n in np.arange(0,N,1): 
+                    Rxx += np.outer(self.buffer[l+P: n,l],np.conj(self.buffer[l+P: n,l])) 
+                np.divide(Rxx,N) # normalization 
+                Rss+=Rxx                 
+        if direction == "backward" or direction == "forward-backward":         
+            for l in range(L): 
+                Rxx = np.zeros((P,P), dtype=complex) # Correlation matrix allocation 
+                for n in np.arange(0,N,1): 
+                    d = np.conj(self.buffer[n,M-l-P:M-l] [::-1]) 
+                    Rxx += np.outer(d,np.conj(d)) 
+                np.divide(Rxx,N) # normalization 
+                Rss+=Rxx         
+        if not (direction == "forward" or direction == "backward" or direction == "forward-backward"):     
+            print("ERROR: Smoothing direction not recognized ! ") 
+            return -1 
+        
+        # normalization            
+        if direction == "forward-backward": 
+            np.divide(Rss,2*L)  
+        else: 
+            np.divide(Rss,L)  
+            
+        return Rss 
+    
+    #  Rxx += np.outer(self.buffer[n,l:l+P],np.conj(self.buffer[n,l:l+P])) 
+    # Rxx = np.zeros((P,P), dtype=complex) # Correlation matrix allocation
+    # d = np.conj(self.buffer[n,M-l-P:M-l] [::-1]) 
 
     def plot_fft(self):
         """
@@ -278,8 +340,9 @@ class KrakenReceiver():
         numpy.ndarray
             Array of estimated DOA angles in degrees.
         """
-        #smoothed_buffer = pa.spatial_smoothing(self.buffer, 2, direction = 'forward-backward')
-        spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
+        smoothed_buffer = self.spatial_smoothing(2, 'forward-backward')
+        spatial_corr_matrix = np.dot(smoothed_buffer, smoothed_buffer.conj().T)
+        #spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
         spatial_corr_matrix = pa.forward_backward_avg(spatial_corr_matrix)
         scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2, self.detection_range/2))
         doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=1)
@@ -445,7 +508,7 @@ def signals(frequencies, angles, num_sensors, num_snapshots, wavelength=1.0, noi
         signals += steering_vector @ signal[np.newaxis, :]
     
     noise = np.sqrt(noise_power) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
-    return signals + 1000 * noise
+    return signals + 100 * noise
     
 class RealTimePlotter(QtWidgets.QMainWindow):
     """
@@ -533,10 +596,6 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         - doa_data (numpy.ndarray): Array of DOA data values, typically normalized between 0 and 1.
         If len(doa_data) == 180, the data is mirrored to cover 360 degrees.
         """
-        if len(doa_data) == 180:
-            #Mirror the data to cover 360 degrees
-            doa_data = np.concatenate((doa_data, doa_data[::-1]))
-
         angles = np.linspace(0, 2 * np.pi, len(doa_data))
         x_values = doa_data * np.cos(angles)
         y_values = doa_data * np.sin(angles)
@@ -561,7 +620,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         """
 
         if kraken.simulation:
-            kraken.buffer = signals([kraken.center_freq], [180] ,kraken.num_devices, kraken.num_samples)
+            kraken.buffer = signals([kraken.center_freq], [45] ,kraken.num_devices, kraken.num_samples)
         else:
             kraken.read_streams()
 
@@ -576,32 +635,27 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         ant0 = np.abs(fft(kraken.buffer[0]))
         ant1 = np.abs(fft(kraken.buffer[1]))
         ant2 = np.abs(fft(kraken.buffer[2]))
-        
-        a_max = np.max(ant0)
-        n_max = np.where(ant0 == a_max)[0]
-        print('index = {n_max}')
-        print('value = {ant0[n_max]}')
-        
+     
         self.plot_doa_circle(doa_data)
         self.fft_curve_0.setData(freqs, ant0)
         self.fft_curve_1.setData(freqs, ant1)
         self.fft_curve_2.setData(freqs, ant2)
 
+        print(doa_data)
         print(np.argmax(doa_data))
 
 if __name__ == '__main__':
     num_samples = 1024*128
     sample_rate = 2.048e6
-    center_freq = 434.4e6
+    center_freq = 433e6
     bandwidth =  2e5 
     gain = 40
-    y = np.array([0,0.866,0])
-    x = np.array([0,0.5,1])
-    antenna_distance = 0.35
+    y = np.array([0,0,0])
+    x = np.array([0,1,2])
     antenna_distance = 0.35
 
     kraken = KrakenReceiver(center_freq, num_samples, 
-                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3, simulation = 0, f_type = 'none', detection_range=360)
+                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3, simulation = 1, f_type = 'LTI', detection_range=360)
     
     app = QtWidgets.QApplication(sys.argv)
     plotter = RealTimePlotter()
