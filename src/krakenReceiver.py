@@ -55,7 +55,7 @@ class KrakenReceiver():
         self.bandwidth = bandwidth
         self.gain = gain
         self.f_type = f_type
-        self.devices, self.streams = (0,0) #self._setup_devices()
+        self.devices, self.streams = self._setup_devices()
 
         self.simulation = simulation
         self.x = x * antenna_distance
@@ -508,45 +508,45 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.timer.timeout.connect(self.update_plots)
         self.timer.start(0)
 
-def initUI(self):
-    """
-    Sets up the user interface (UI) layout.
-    """
-    self.setWindowTitle('Real-Time Data Visualization')
-    
-    self.centralWidget = QtWidgets.QWidget()
-    self.setCentralWidget(self.centralWidget)
-    
-    self.layout = QtWidgets.QGridLayout(self.centralWidget)
-    
-    self.doa_plot = pg.PlotWidget(title="Direction of Arrival")
-    self.doa_plot.setAspectLocked(True) 
-    self.doa_plot.showAxis('left', False) 
-    self.doa_plot.showAxis('bottom', False)
-    self.layout.addWidget(self.doa_plot, 0, 0, 1, 1)
-    
-    self.fft_plot_0 = pg.PlotWidget(title="FFT Antenna 0")
-    self.fft_curve_0 = self.fft_plot_0.plot(pen='r')
-    self.layout.addWidget(self.fft_plot_0, 0, 1, 1, 1)
-    
-    self.fft_plot_1 = pg.PlotWidget(title="FFT Antenna 1")
-    self.fft_curve_1 = self.fft_plot_1.plot(pen='g')
-    self.layout.addWidget(self.fft_plot_1, 1, 0, 1, 1)
-    
-    self.fft_plot_2 = pg.PlotWidget(title="FFT Antenna 2")
-    self.fft_curve_2 = self.fft_plot_2.plot(pen='b')
-    self.layout.addWidget(self.fft_plot_2, 1, 1, 1, 1)
+    def initUI(self):
+        """
+        Sets up the user interface (UI) layout.
+        """
+        self.setWindowTitle('Real-Time Data Visualization')
+        
+        self.centralWidget = QtWidgets.QWidget()
+        self.setCentralWidget(self.centralWidget)
+        
+        self.layout = QtWidgets.QGridLayout(self.centralWidget)
+        
+        self.doa_plot = pg.PlotWidget(title="Direction of Arrival")
+        self.doa_plot.setAspectLocked(True) 
+        self.doa_plot.showAxis('left', False) 
+        self.doa_plot.showAxis('bottom', False)
+        self.layout.addWidget(self.doa_plot, 0, 0, 1, 1)
+        
+        self.fft_plot_0 = pg.PlotWidget(title="FFT Antenna 0")
+        self.fft_curve_0 = self.fft_plot_0.plot(pen='r')
+        self.layout.addWidget(self.fft_plot_0, 0, 1, 1, 1)
+        
+        self.fft_plot_1 = pg.PlotWidget(title="FFT Antenna 1")
+        self.fft_curve_1 = self.fft_plot_1.plot(pen='g')
+        self.layout.addWidget(self.fft_plot_1, 1, 0, 1, 1)
+        
+        self.fft_plot_2 = pg.PlotWidget(title="FFT Antenna 2")
+        self.fft_curve_2 = self.fft_plot_2.plot(pen='b')
+        self.layout.addWidget(self.fft_plot_2, 1, 1, 1, 1)
 
-    self.fft_plot_3 = pg.PlotWidget(title="FFT Antenna 3")
-    self.fft_curve_3 = self.fft_plot_3.plot(pen='y')  # Changed to yellow
-    self.layout.addWidget(self.fft_plot_3, 2, 0, 1, 1)
+        self.fft_plot_3 = pg.PlotWidget(title="FFT Antenna 3")
+        self.fft_curve_3 = self.fft_plot_3.plot(pen='y')  # Changed to yellow
+        self.layout.addWidget(self.fft_plot_3, 2, 0, 1, 1)
 
-    self.fft_plot_4 = pg.PlotWidget(title="FFT Antenna 4")
-    self.fft_curve_4 = self.fft_plot_4.plot(pen='c')  # Changed to cyan
-    self.layout.addWidget(self.fft_plot_4, 2, 1, 1, 1)
+        self.fft_plot_4 = pg.PlotWidget(title="FFT Antenna 4")
+        self.fft_curve_4 = self.fft_plot_4.plot(pen='c')  # Changed to cyan
+        self.layout.addWidget(self.fft_plot_4, 2, 1, 1, 1)
 
-    self.create_polar_grid()
-    self.doa_curve = None  # Initialize doa_curve to None
+        self.create_polar_grid()
+        self.doa_curve = None  # Initialize doa_curve to None
 
     def create_polar_grid(self):
         """
@@ -623,12 +623,15 @@ def initUI(self):
         ant0 = np.abs(fft(kraken.buffer[0]))
         ant1 = np.abs(fft(kraken.buffer[1]))
         ant2 = np.abs(fft(kraken.buffer[2]))
-     
+        ant3 = np.abs(fft(kraken.buffer[3]))
+        ant4 = np.abs(fft(kraken.buffer[4]))  
         
         self.plot_doa_circle(doa_data)
         self.fft_curve_0.setData(freqs, ant0)
         self.fft_curve_1.setData(freqs, ant1)
         self.fft_curve_2.setData(freqs, ant2)
+        self.fft_curve_3.setData(freqs, ant3)
+        self.fft_curve_4.setData(freqs, ant4)
 
         #print(doa_data)
         print(np.argmax(doa_data))
@@ -639,12 +642,12 @@ if __name__ == '__main__':
     center_freq = 434.4e6
     bandwidth =  2e5 
     gain = 40
-    y = np.array([0, 0, 0])
-    x = np.array([0, 1, 2])
-    antenna_distance = 0.35
+    y = np.array([0, 0, 0, 0, 0])
+    x = np.array([0, 1, 2, 3, 4])
+    antenna_distance = 0.175
 
     kraken = KrakenReceiver(center_freq, num_samples, 
-                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=3, simulation = 0, f_type = 'none', detection_range=360)
+                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=5, simulation = 0, f_type = 'none', detection_range=360)
     
     app = QtWidgets.QApplication(sys.argv)
     plotter = RealTimePlotter()
