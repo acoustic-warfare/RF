@@ -80,10 +80,10 @@ class KrakenReceiver():
 
         elif f_type == 'FIR':
             #Design a FIR filter using the firwin function
-            numtaps = 151  # Number of filter taps (filter length)
+            numtaps = 51  # Number of filter taps (filter length)
             fc = self.center_freq
             fs = 4*fc
-            bandwidth = 0.3*fc
+            bandwidth = 0.2*fc
             highcut = bandwidth/2  # Upper cutoff frequency (Hz)
             taps = signal.firwin(numtaps, [highcut], fs=fs, pass_zero=True)
             self.filter = taps
@@ -120,14 +120,17 @@ class KrakenReceiver():
             device = self._setup_device(serial)
             devices[i] = device
             if not self.simulation:
-                self.stream(serial, i)
+                self.start_stream(serial, i)
            
         return devices
     
-    async def stream(self, device, device_index):
+    async def start_stream(self, device, device_index):
         
         async for samples in device.stream():
             self.buffer[device_index] = samples
+
+            await device.stop()
+            device.close()
 
     
     # def _read_stream(self, device):
@@ -225,7 +228,7 @@ def signals_linear(frequencies, angles, num_sensors, num_snapshots, antenna_posi
         signals += steering_vector @ signal[np.newaxis, :]
     
     noise = np.sqrt(noise_power) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
-    return signals + 600 * noise
+    return signals + 200 * noise
 
 
 def signals_circular(frequencies, angles, num_sensors, num_snapshots, antenna_positions_x, antenna_positions_y , antenna_distance, wavelength=1.0, noise_power=1e-3):
@@ -418,7 +421,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         print(np.argmax(doa_data))
 
 if __name__ == '__main__':
-    num_samples = 1024*32
+    num_samples = 1024*128
     sample_rate = 2.048e6
     center_freq = 434.4e6
     gain = 40
@@ -430,15 +433,8 @@ if __name__ == '__main__':
 
 
     kraken = KrakenReceiver(center_freq, num_samples, 
-<<<<<<< HEAD
                            sample_rate, gain, antenna_distance, x, y, num_devices=5, simulation = 0, f_type = 'FIR', detection_range=360)
-=======
-                           sample_rate, gain, antenna_distance, x, y, num_devices=5, simulation = 1, f_type = 'FIR', detection_range=360)
->>>>>>> 225299ac77fbb7205f6fbb7189d224daa2971185
     
-    # while True:
-    #     kraken.read_streams()
-    #     print(kraken.buffer)
 
     app = QtWidgets.QApplication(sys.argv)
     plotter = RealTimePlotter()
