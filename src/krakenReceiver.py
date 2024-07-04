@@ -508,37 +508,45 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.timer.timeout.connect(self.update_plots)
         self.timer.start(0)
 
-    def initUI(self):
-        """
-        Sets up the user interface (UI) layout.
-        """
-        self.setWindowTitle('Real-Time Data Visualization')
-        
-        self.centralWidget = QtWidgets.QWidget()
-        self.setCentralWidget(self.centralWidget)
-        
-        self.layout = QtWidgets.QGridLayout(self.centralWidget)
-        
-        self.doa_plot = pg.PlotWidget(title="Direction of Arrival")
-        self.doa_plot.setAspectLocked(True) 
-        self.doa_plot.showAxis('left', False) 
-        self.doa_plot.showAxis('bottom', False)
-        self.layout.addWidget(self.doa_plot, 0, 0, 1, 1)
-        
-        self.fft_plot_0 = pg.PlotWidget(title="FFT Antenna 0")
-        self.fft_curve_0 = self.fft_plot_0.plot(pen='r')
-        self.layout.addWidget(self.fft_plot_0, 0, 1, 1, 1)
-        
-        self.fft_plot_1 = pg.PlotWidget(title="FFT Antenna 1")
-        self.fft_curve_1 = self.fft_plot_1.plot(pen='g')
-        self.layout.addWidget(self.fft_plot_1, 1, 0, 1, 1)
-        
-        self.fft_plot_2 = pg.PlotWidget(title="FFT Antenna 2")
-        self.fft_curve_2 = self.fft_plot_2.plot(pen='b')
-        self.layout.addWidget(self.fft_plot_2, 1, 1, 1, 1)
+def initUI(self):
+    """
+    Sets up the user interface (UI) layout.
+    """
+    self.setWindowTitle('Real-Time Data Visualization')
+    
+    self.centralWidget = QtWidgets.QWidget()
+    self.setCentralWidget(self.centralWidget)
+    
+    self.layout = QtWidgets.QGridLayout(self.centralWidget)
+    
+    self.doa_plot = pg.PlotWidget(title="Direction of Arrival")
+    self.doa_plot.setAspectLocked(True) 
+    self.doa_plot.showAxis('left', False) 
+    self.doa_plot.showAxis('bottom', False)
+    self.layout.addWidget(self.doa_plot, 0, 0, 1, 1)
+    
+    self.fft_plot_0 = pg.PlotWidget(title="FFT Antenna 0")
+    self.fft_curve_0 = self.fft_plot_0.plot(pen='r')
+    self.layout.addWidget(self.fft_plot_0, 0, 1, 1, 1)
+    
+    self.fft_plot_1 = pg.PlotWidget(title="FFT Antenna 1")
+    self.fft_curve_1 = self.fft_plot_1.plot(pen='g')
+    self.layout.addWidget(self.fft_plot_1, 1, 0, 1, 1)
+    
+    self.fft_plot_2 = pg.PlotWidget(title="FFT Antenna 2")
+    self.fft_curve_2 = self.fft_plot_2.plot(pen='b')
+    self.layout.addWidget(self.fft_plot_2, 1, 1, 1, 1)
 
-        self.create_polar_grid()
-        self.doa_curve = None  # Initialize doa_curve to None
+    self.fft_plot_3 = pg.PlotWidget(title="FFT Antenna 3")
+    self.fft_curve_3 = self.fft_plot_3.plot(pen='y')  # Changed to yellow
+    self.layout.addWidget(self.fft_plot_3, 2, 0, 1, 1)
+
+    self.fft_plot_4 = pg.PlotWidget(title="FFT Antenna 4")
+    self.fft_curve_4 = self.fft_plot_4.plot(pen='c')  # Changed to cyan
+    self.layout.addWidget(self.fft_plot_4, 2, 1, 1, 1)
+
+    self.create_polar_grid()
+    self.doa_curve = None  # Initialize doa_curve to None
 
     def create_polar_grid(self):
         """
