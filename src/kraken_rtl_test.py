@@ -72,7 +72,7 @@ class KrakenReceiver():
             if self.mode == 'normal':
                 self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64)
         
-            self.devices = self._setup_devices()
+            self.devices, self.streams = self._setup_devices()
 
         if f_type == 'butter':
             #Build digital filter
@@ -120,6 +120,8 @@ class KrakenReceiver():
     
     def _setup_devices(self):
         devices = np.zeros(self.num_devices, dtype=object)
+        streams = np.zeros(self.num_devices, dtype=object)
+        loop = asyncio.get_event_loop()
 
         available_devices = RtlSdr.get_device_serial_addresses()
         selected_devices = (available_devices[1:] + available_devices[:1])[:self.num_devices]
@@ -127,19 +129,22 @@ class KrakenReceiver():
         for i, serial in enumerate(selected_devices):
             device = self._setup_device(serial)
             devices[i] = device
+            
             if self.mode == 'async':
-                loop = asyncio.get_event_loop()
-                loop.run_until_complete(self.start_stream(device, i))
-           
-        return devices
+                stream = loop.create_task(self._setup_stream(device, i))
+                streams[i] = stream
+        return devices, streams
     
-    async def start_stream(self, device, device_index):
+    async def _setup_stream(self, device, device_index):
         
         async for samples in device.stream():
+            print(f"Writing to buffer for device {device_index}")
             self.buffer[device_index] = samples
+            
 
-            await device.stop()
-            device.close()
+    def start_streams(self):
+        loop = asyncio.get_event_loop()
+        loop.run_until_complete(asyncio.gather(*self.streams))
 
     
     def _read_stream(self, device):
@@ -301,6 +306,8 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.timer.timeout.connect(self.update_plots)
         self.timer.start(0)
 
+        kraken.start_streams()
+
     def initUI(self):
         """
         Sets up the user interface (UI) layout.
@@ -406,6 +413,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             #kraken.buffer = signals_circular([kraken.center_freq], [310] ,kraken.num_devices, kraken.num_samples, x, y, antenna_distance)
         elif kraken.mode == 'normal':
             kraken.read_streams()
+            
 
         kraken.apply_filter()
 
