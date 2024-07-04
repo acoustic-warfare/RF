@@ -655,17 +655,17 @@ if __name__ == '__main__':
     ant3 = [-0.8090,   -0.5878]
     ant4 = [0.3090,   -0.9511]
     
-    # y = np.array([ant0[1], ant1[1], ant2[1], ant3[1], ant4[1]])
-    # x = np.array([ant0[0], ant1[0], ant2[0], ant3[0], ant4[0]])
-    # antenna_distance = 0.148857 # actual antenna distance: 0.175
+    y = np.array([ant0[1], ant1[1], ant2[1], ant3[1], ant4[1]])
+    x = np.array([ant0[0], ant1[0], ant2[0], ant3[0], ant4[0]])
+    antenna_distance = 0.148857 # actual antenna distance: 0.175
     
     # Linear Setup
-    y = np.array([0, 0, 0, 0, 0])
-    x = np.array([0, 1, 2, 3, 4])
-    antenna_distance = 0.175
+    # y = np.array([0, 0, 0, 0, 0])
+    # x = np.array([0, 1, 2, 3, 4])
+    # antenna_distance = 0.175
 
     kraken = KrakenReceiver(center_freq, num_samples, 
-                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=5, simulation = 0, f_type = 'FIR', detection_range=360)
+                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=5, simulation = 0, f_type = 'LTI', detection_range=360)
     
     app = QtWidgets.QApplication(sys.argv)
     plotter = RealTimePlotter()
