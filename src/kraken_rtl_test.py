@@ -45,7 +45,7 @@ class KrakenReceiver():
         A signal processing filter
     """
     def __init__(self, center_freq, num_samples, sample_rate, gain, antenna_distance, x, y, 
-                 num_devices=5, simulation = 0, f_type = 'LTI', detection_range = 360):
+                 num_devices=5, mode = 0, f_type = 'LTI', detection_range = 360):
         
         self.num_devices = num_devices
         self.center_freq = center_freq
@@ -53,19 +53,26 @@ class KrakenReceiver():
         self.sample_rate = sample_rate
         self.gain = gain
         self.f_type = f_type
-        self.simulation = simulation
+
+        modes = ['normal', 'async', 'simulation']
+        if mode in modes:
+            self.mode = mode
+        else: self.mode = modes[mode]
 
         self.x = x * antenna_distance
         self.y = y * antenna_distance
         self.detection_range = detection_range
 
-        if self.simulation:
+
+
+        if self.mode == 'simulation':
             self.buffer = signals_linear([self.center_freq], [30] ,self.num_devices, self.num_samples, self.x, antenna_distance)
             #self.buffer = signals_circular([self.center_freq], [300] ,self.num_devices, self.num_samples, self.x, self.y, antenna_distance)
-        else:
-            self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64)
-
-        self.devices = self._setup_devices()
+        else: 
+            if self.mode == 'normal':
+                self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64)
+        
+            self.devices = self._setup_devices()
 
         if f_type == 'butter':
             #Build digital filter
@@ -119,7 +126,7 @@ class KrakenReceiver():
         for i, serial in enumerate(selected_devices):
             device = self._setup_device(serial)
             devices[i] = device
-            if not self.simulation:
+            if self.mode == 'async':
                 loop = asyncio.get_event_loop()
                 loop.run_until_complete(self.start_stream(device, i))
            
@@ -391,12 +398,13 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         and updates the corresponding PlotWidget curves (`doa_curve`, `fft_curve_0`, `fft_curve_1`, `fft_curve_2`).
         """
 
-        if kraken.simulation:
+        print(kraken.mode)
+
+        if kraken.mode == 'simulation':
             kraken.buffer = signals_linear([kraken.center_freq], [45] ,kraken.num_devices, kraken.num_samples, x, antenna_distance)
             #kraken.buffer = signals_circular([kraken.center_freq], [310] ,kraken.num_devices, kraken.num_samples, x, y, antenna_distance)
-        else:
-            #kraken.read_streams()
-            pass
+        elif kraken.mode == 'normal':
+            kraken.read_streams()
 
         kraken.apply_filter()
 
@@ -435,7 +443,7 @@ if __name__ == '__main__':
 
 
     kraken = KrakenReceiver(center_freq, num_samples, 
-                           sample_rate, gain, antenna_distance, x, y, num_devices=5, simulation = 0, f_type = 'FIR', detection_range=360)
+                           sample_rate, gain, antenna_distance, x, y, num_devices=5, mode = 2, f_type = 'FIR', detection_range=360)
     
     # while True:
     #     kraken.read_streams()
