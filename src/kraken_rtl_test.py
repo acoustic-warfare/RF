@@ -59,8 +59,9 @@ class KrakenReceiver():
         self.x = x * antenna_distance
         self.y = y * antenna_distance
         self.detection_range = detection_range
+        self.simulation = simulation
 
-        if simulation:
+        if self.simulation:
             self.buffer = signals_linear([self.center_freq], [30] ,self.num_devices, self.num_samples, self.x, antenna_distance)
             #self.buffer = signals_circular([self.center_freq], [300] ,self.num_devices, self.num_samples, self.x, self.y, antenna_distance)
         else:
@@ -79,7 +80,7 @@ class KrakenReceiver():
 
         elif f_type == 'FIR':
             #Design a FIR filter using the firwin function
-            numtaps = 51  # Number of filter taps (filter length)
+            numtaps = 151  # Number of filter taps (filter length)
             fc = self.center_freq
             fs = 4*fc
             bandwidth = 0.3*fc
@@ -118,45 +119,47 @@ class KrakenReceiver():
         for i, serial in enumerate(selected_devices):
             device = self._setup_device(serial)
             devices[i] = device
+            if not self.simulation:
+                self.stream(serial, i)
            
         return devices
     
-    # async def stream(self, device, device_index):
+    async def stream(self, device, device_index):
         
-    #     async for samples in device.stream():
-    #         self.buffer[device_index] = samples
+        async for samples in device.stream():
+            self.buffer[device_index] = samples
 
     
-    def _read_stream(self, device):
-        """
-        Reads data from a specified device's stream and handles any errors.
+    # def _read_stream(self, device):
+    #     """
+    #     Reads data from a specified device's stream and handles any errors.
 
-        Parameters:
-        device : int
-            Index of the device from which to read data.
-        timestamp : int
-            Timestamp indicating the start time of the read operation.
+    #     Parameters:
+    #     device : int
+    #         Index of the device from which to read data.
+    #     timestamp : int
+    #         Timestamp indicating the start time of the read operation.
 
-        Raises:
-        ValueError:
-            If an error occurs while reading the stream (e.g., timeout, overflow).
-        """
+    #     Raises:
+    #     ValueError:
+    #         If an error occurs while reading the stream (e.g., timeout, overflow).
+    #     """
         
-        self.buffer[device] = self.devices[device].read_samples(self.num_samples)
+    #     self.buffer[device] = self.devices[device].read_samples(self.num_samples)
         
 
 
-    def read_streams(self):
-        """
-        Reads data from all receiver devices and filters the captured signals.
+    # def read_streams(self):
+    #     """
+    #     Reads data from all receiver devices and filters the captured signals.
 
-        Uses a thread pool to read data from multiple devices concurrently,
-        then applies a filter to the captured signals stored in `self.buffer`.
-        """
-        with ThreadPoolExecutor(max_workers=self.num_devices) as executor:
-            futures = [executor.submit(self._read_stream, i) for i in range(self.num_devices)]
-            for future in futures:
-                future.result()
+    #     Uses a thread pool to read data from multiple devices concurrently,
+    #     then applies a filter to the captured signals stored in `self.buffer`.
+    #     """
+    #     with ThreadPoolExecutor(max_workers=self.num_devices) as executor:
+    #         futures = [executor.submit(self._read_stream, i) for i in range(self.num_devices)]
+    #         for future in futures:
+    #             future.result()
 
     def apply_filter(self):
         if self.f_type == 'none': 
