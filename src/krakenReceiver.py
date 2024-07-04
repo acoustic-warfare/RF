@@ -55,18 +55,20 @@ class KrakenReceiver():
         self.bandwidth = bandwidth
         self.gain = gain
         self.f_type = f_type
-        self.devices, self.streams = self._setup_devices()
+        self.devices, self.streams = (0,0) #self._setup_devices()
 
         self.simulation = simulation
-
-        if simulation:
-            self.buffer = signals([self.center_freq], [30] ,self.num_devices, self.num_samples)
-        else:
-            self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64)
-        
         self.x = x * antenna_distance
         self.y = y * antenna_distance
         self.detection_range = detection_range
+
+        if simulation:
+            self.buffer = signals_linear([self.center_freq], [30] ,self.num_devices, self.num_samples, self.x, antenna_distance)
+            #self.buffer = signals_circular([self.center_freq], [300] ,self.num_devices, self.num_samples, self.x, self.y, antenna_distance)
+        else:
+            self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64)
+        
+        
 
         if f_type == 'butter':
             #Build digital filter
@@ -229,108 +231,43 @@ class KrakenReceiver():
             futures = [executor.submit(self._read_stream, i, start_time_ns) for i in range(self.num_devices)]
             for future in futures:
                 future.result()
-
-    def spatial_smoothing(self, P, direction): 
-        """ 
+    
+    def spatial_smoothing_rewrite(self, P, direction): 
         
-            Calculates the forward and (or) backward spatially smoothed correlation matrix
-            
-        Parameters:
-        -----------
-            :param X : Received multichannel signal matrix from the antenna array.         
-            :param P : Size of the subarray
-            :param direction: 
+        M = self.num_devices
+        N = self.num_samples  
+        L = M - P + 1  # Number of subarrays    
 
-            :type X: N x M complex numpy array N is the number of samples, M is the number of antenna elements.
-            :type P : int
-            :type direction: string
-                
-        Return values:
-        -------------
-        
-            :return R_ss : Forward-backward averaged correlation matrix
-            :rtype R_ss: P x P complex numpy array    
-            
-            -1: direction parameter is invalid
-        """
-        # --input check--
-        N = np.size(self.buffer, 1)  # Number of samples 
-        M = np.size(self.buffer, 0)  # Number of antenna elements    
+        Rss = np.zeros((P, P), dtype=complex)  # Spatially smoothed correlation matrix 
 
-        if N < M:
-            print("WARNING: Number of antenna elements is greather than the number of time samples")
-            print("WARNING: You may flipped the input matrix")
-        L = M-P+1 # Number of subarrays     
-        Rss = np.zeros((P,P), dtype=complex) # Spatialy smoothed correlation matrix 
-        
         if direction == "forward" or direction == "forward-backward":            
             for l in range(L):             
-                Rxx = np.zeros((P,P), dtype=complex) # Correlation matrix allocation 
+                Rxx = np.zeros((P, P), dtype=complex)  # Correlation matrix allocation 
                 for n in np.arange(0,N,1): 
-                    Rxx += np.outer(self.buffer[l+P: n,l],np.conj(self.buffer[l+P: n,l])) 
-                np.divide(Rxx,N) # normalization 
-                Rss+=Rxx                 
+                    Rxx += np.outer(self.buffer[l:l+P, n], np.conj(self.buffer[l:l+P, n])) 
+                np.divide(Rxx, N)  # normalization 
+                Rss += Rxx 
+
         if direction == "backward" or direction == "forward-backward":         
             for l in range(L): 
-                Rxx = np.zeros((P,P), dtype=complex) # Correlation matrix allocation 
+                Rxx = np.zeros((P, P), dtype=complex)  # Correlation matrix allocation 
                 for n in np.arange(0,N,1): 
-                    d = np.conj(self.buffer[n,M-l-P:M-l] [::-1]) 
-                    Rxx += np.outer(d,np.conj(d)) 
-                np.divide(Rxx,N) # normalization 
-                Rss+=Rxx         
+                    d = np.conj(self.buffer[M-l-P:M-l, n][::-1]) 
+                    Rxx += np.outer(d, np.conj(d)) 
+                np.divide(Rxx, N)  # normalization 
+                Rss += Rxx 
+
         if not (direction == "forward" or direction == "backward" or direction == "forward-backward"):     
-            print("ERROR: Smoothing direction not recognized ! ") 
+            print("ERROR: Smoothing direction not recognized!") 
             return -1 
-        
+
         # normalization            
         if direction == "forward-backward": 
-            np.divide(Rss,2*L)  
+            np.divide(Rss, 2*L)  
         else: 
             np.divide(Rss,L)  
-            
-        return Rss 
-    
-    #  Rxx += np.outer(self.buffer[n,l:l+P],np.conj(self.buffer[n,l:l+P])) 
-    # Rxx = np.zeros((P,P), dtype=complex) # Correlation matrix allocation
-    # d = np.conj(self.buffer[n,M-l-P:M-l] [::-1]) 
 
-    def plot_fft(self):
-        """
-        Plots the FFT and phase of received signals for each channel.
-
-        Generates plots for each receiver device showing the FFT (amplitude)
-        and phase of the received signals.
-        """
-        if self.num_devices > 1:
-            fig, axes = plt.subplots(self.num_devices, 2, figsize=(18, 8 * self.num_devices))
-        else:
-            fig, axes = plt.subplots(1, 2, figsize=(18, 8))
-            axes = np.array([axes])  #Ensure axes is always a 2D array
-
-        for i in range(self.num_devices):
-            #FFT of the samples
-            freqs = np.fft.fftfreq(self.num_samples, d=1/self.sample_rate)
-            fft_samples = fft(self.buffer[i])
-            axes[i, 0].plot(freqs, np.abs(fft_samples))
-            axes[i, 0].grid()
-            axes[i, 0].set_title(f'FFT of Received Samples (Channel {i})')
-            axes[i, 0].set_xlabel('Frequency (Hz)')
-            axes[i, 0].set_ylabel('Amplitude')
-
-            #Phase of the samples
-            fft_samples[np.abs(fft_samples) < 2000] = 0
-            phases = np.angle(fft_samples, deg=True)
-            phases[np.angle(fft_samples) == 0] = np.NaN
-            axes[i, 1].plot(freqs, phases, 'o')
-            axes[i, 1].grid()
-            axes[i, 1].set_xlim(-self.sample_rate / 2, self.sample_rate / 2)
-            axes[i, 1].set_ylim(-180,180)
-            axes[i, 1].set_title(f'Phase of Received Samples (Channel {i})')
-            axes[i, 1].set_xlabel('Frequency (Hz)')
-            axes[i, 1].set_ylabel('Phase (radians)')
-
-        plt.tight_layout()
-        plt.show()
+        return Rss
 
     def music(self):
         """
@@ -471,7 +408,7 @@ def get_device_info():
 
         return device_info_list
 
-def signals(frequencies, angles, num_sensors, num_snapshots, wavelength=1.0, noise_power=1e-3):
+def signals_linear(frequencies, angles, num_sensors, num_snapshots, antenna_positions, antenna_distance, wavelength=1.0, noise_power=1e-3):
     """
     Generates signals received by sensor array.
 
@@ -495,8 +432,7 @@ def signals(frequencies, angles, num_sensors, num_snapshots, wavelength=1.0, noi
         over time (shape: (num_sensors, num_snapshots)).
 
     """
-    antenna_distance_m = 0.35
-    sensor_positions = np.array([0,1,2]) * antenna_distance_m
+    sensor_positions = antenna_positions * antenna_distance
     signals = np.zeros((num_sensors, num_snapshots), dtype=complex)
     frequency_offset = frequencies[0]
 
@@ -508,7 +444,50 @@ def signals(frequencies, angles, num_sensors, num_snapshots, wavelength=1.0, noi
         signals += steering_vector @ signal[np.newaxis, :]
     
     noise = np.sqrt(noise_power) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
-    return signals + 100 * noise
+    return signals + 600 * noise
+
+
+def signals_circular(frequencies, angles, num_sensors, num_snapshots, antenna_positions_x, antenna_positions_y , antenna_distance, wavelength=1.0, noise_power=1e-3):
+    """
+    Generates signals received by a circular sensor array.
+
+    Parameters:
+    frequencies : list
+        List of frequencies (in Hz) of the transmitted signals.
+    angles : list
+        List of angles (in degrees) of arrival corresponding to each frequency.
+    num_sensors : int
+        Number of sensors in the circular array.
+    num_snapshots : int
+        Number of signal snapshots to generate.
+    radius : float
+        Radius of the circular array.
+    wavelength : float, optional
+        Wavelength of the transmitted signals (default is 1.0).
+    noise_power : float, optional
+        Power of additive Gaussian noise (default is 1e-3).
+
+    Returns:
+    numpy.ndarray
+        2D array of complex numbers representing received signals at each sensor
+        over time (shape: (num_sensors, num_snapshots)).
+    """
+    sensor_positions_x = antenna_positions_x * antenna_distance
+    sensor_positions_y = antenna_positions_y * antenna_distance
+    
+    signals = np.zeros((num_sensors, num_snapshots), dtype=complex)
+    frequency_offset = frequencies[0]
+
+    for f, angle in zip(frequencies, angles):
+        f_cal = f - frequency_offset
+        signal = np.exp(1j * 2 * np.pi * f_cal * np.arange(num_snapshots) / num_snapshots)
+        angle_rad = np.radians(angle)
+        steering_vector = np.exp(1j * 2 * np.pi * (sensor_positions_x[:, np.newaxis] * np.cos(angle_rad) +
+                                                   sensor_positions_y[:, np.newaxis] * np.sin(angle_rad)) / wavelength)
+        signals += steering_vector @ signal[np.newaxis, :]
+    
+    noise = np.sqrt(noise_power) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
+    return signals #+ 100 * noise
     
 class RealTimePlotter(QtWidgets.QMainWindow):
     """
@@ -529,37 +508,45 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.timer.timeout.connect(self.update_plots)
         self.timer.start(0)
 
-    def initUI(self):
-        """
-        Sets up the user interface (UI) layout.
-        """
-        self.setWindowTitle('Real-Time Data Visualization')
-        
-        self.centralWidget = QtWidgets.QWidget()
-        self.setCentralWidget(self.centralWidget)
-        
-        self.layout = QtWidgets.QGridLayout(self.centralWidget)
-        
-        self.doa_plot = pg.PlotWidget(title="Direction of Arrival")
-        self.doa_plot.setAspectLocked(True) 
-        self.doa_plot.showAxis('left', False) 
-        self.doa_plot.showAxis('bottom', False)
-        self.layout.addWidget(self.doa_plot, 0, 0, 1, 1)
-        
-        self.fft_plot_0 = pg.PlotWidget(title="FFT Antenna 0")
-        self.fft_curve_0 = self.fft_plot_0.plot(pen='r')
-        self.layout.addWidget(self.fft_plot_0, 0, 1, 1, 1)
-        
-        self.fft_plot_1 = pg.PlotWidget(title="FFT Antenna 1")
-        self.fft_curve_1 = self.fft_plot_1.plot(pen='g')
-        self.layout.addWidget(self.fft_plot_1, 1, 0, 1, 1)
-        
-        self.fft_plot_2 = pg.PlotWidget(title="FFT Antenna 2")
-        self.fft_curve_2 = self.fft_plot_2.plot(pen='b')
-        self.layout.addWidget(self.fft_plot_2, 1, 1, 1, 1)
+def initUI(self):
+    """
+    Sets up the user interface (UI) layout.
+    """
+    self.setWindowTitle('Real-Time Data Visualization')
+    
+    self.centralWidget = QtWidgets.QWidget()
+    self.setCentralWidget(self.centralWidget)
+    
+    self.layout = QtWidgets.QGridLayout(self.centralWidget)
+    
+    self.doa_plot = pg.PlotWidget(title="Direction of Arrival")
+    self.doa_plot.setAspectLocked(True) 
+    self.doa_plot.showAxis('left', False) 
+    self.doa_plot.showAxis('bottom', False)
+    self.layout.addWidget(self.doa_plot, 0, 0, 1, 1)
+    
+    self.fft_plot_0 = pg.PlotWidget(title="FFT Antenna 0")
+    self.fft_curve_0 = self.fft_plot_0.plot(pen='r')
+    self.layout.addWidget(self.fft_plot_0, 0, 1, 1, 1)
+    
+    self.fft_plot_1 = pg.PlotWidget(title="FFT Antenna 1")
+    self.fft_curve_1 = self.fft_plot_1.plot(pen='g')
+    self.layout.addWidget(self.fft_plot_1, 1, 0, 1, 1)
+    
+    self.fft_plot_2 = pg.PlotWidget(title="FFT Antenna 2")
+    self.fft_curve_2 = self.fft_plot_2.plot(pen='b')
+    self.layout.addWidget(self.fft_plot_2, 1, 1, 1, 1)
 
-        self.create_polar_grid()
-        self.doa_curve = None  # Initialize doa_curve to None
+    self.fft_plot_3 = pg.PlotWidget(title="FFT Antenna 3")
+    self.fft_curve_3 = self.fft_plot_3.plot(pen='y')  # Changed to yellow
+    self.layout.addWidget(self.fft_plot_3, 2, 0, 1, 1)
+
+    self.fft_plot_4 = pg.PlotWidget(title="FFT Antenna 4")
+    self.fft_curve_4 = self.fft_plot_4.plot(pen='c')  # Changed to cyan
+    self.layout.addWidget(self.fft_plot_4, 2, 1, 1, 1)
+
+    self.create_polar_grid()
+    self.doa_curve = None  # Initialize doa_curve to None
 
     def create_polar_grid(self):
         """
@@ -620,7 +607,8 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         """
 
         if kraken.simulation:
-            kraken.buffer = signals([kraken.center_freq], [45] ,kraken.num_devices, kraken.num_samples)
+            kraken.buffer = signals_linear([kraken.center_freq], [0] ,kraken.num_devices, kraken.num_samples, x, antenna_distance)
+            #kraken.buffer = signals_circular([kraken.center_freq], [310] ,kraken.num_devices, kraken.num_samples, x, y, antenna_distance)
         else:
             kraken.read_streams()
 
