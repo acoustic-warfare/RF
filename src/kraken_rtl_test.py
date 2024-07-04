@@ -418,7 +418,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         print(np.argmax(doa_data))
 
 if __name__ == '__main__':
-    num_samples = 1024*128
+    num_samples = 1024*32
     sample_rate = 2.048e6
     center_freq = 434.4e6
     gain = 40
@@ -430,7 +430,11 @@ if __name__ == '__main__':
 
 
     kraken = KrakenReceiver(center_freq, num_samples, 
+<<<<<<< HEAD
+                           sample_rate, gain, antenna_distance, x, y, num_devices=5, simulation = 0, f_type = 'FIR', detection_range=360)
+=======
                            sample_rate, gain, antenna_distance, x, y, num_devices=5, simulation = 1, f_type = 'FIR', detection_range=360)
+>>>>>>> 225299ac77fbb7205f6fbb7189d224daa2971185
     
     # while True:
     #     kraken.read_streams()
