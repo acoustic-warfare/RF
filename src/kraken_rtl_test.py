@@ -88,6 +88,7 @@ class KrakenReceiver():
         elif f_type == 'FIR':
             #Design a FIR filter using the firwin function
             numtaps = 51  # Number of filter taps (filter length)
+            numtaps = 51  # Number of filter taps (filter length)
             fc = self.center_freq
             fs = 4*fc
             bandwidth = 0.1*fc
@@ -236,7 +237,7 @@ def signals_linear(frequencies, angles, num_sensors, num_snapshots, antenna_posi
         signals += steering_vector @ signal[np.newaxis, :]
     
     noise = np.sqrt(noise_power) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
-    return signals + 600 * noise
+    return signals + 200 * noise
 
 
 def signals_circular(frequencies, angles, num_sensors, num_snapshots, antenna_positions_x, antenna_positions_y , antenna_distance, wavelength=1.0, noise_power=1e-3):
@@ -445,9 +446,6 @@ if __name__ == '__main__':
     kraken = KrakenReceiver(center_freq, num_samples, 
                            sample_rate, gain, antenna_distance, x, y, num_devices=5, mode = 2, f_type = 'FIR', detection_range=360)
     
-    # while True:
-    #     kraken.read_streams()
-    #     print(kraken.buffer)
 
     app = QtWidgets.QApplication(sys.argv)
     plotter = RealTimePlotter()
