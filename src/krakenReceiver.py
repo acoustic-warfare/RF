@@ -1,4 +1,5 @@
 import numpy as np
+import numpy.linalg as lin
 import sys
 import SoapySDR as sp
 import scipy.signal as signal
@@ -63,8 +64,8 @@ class KrakenReceiver():
         self.detection_range = detection_range
 
         if simulation:
-            self.buffer = signals_linear([self.center_freq], [30] ,self.num_devices, self.num_samples, self.x, antenna_distance)
-            #self.buffer = signals_circular([self.center_freq], [300] ,self.num_devices, self.num_samples, self.x, self.y, antenna_distance)
+            #self.buffer = signals_linear([self.center_freq], [30] ,self.num_devices, self.num_samples, self.x, antenna_distance)
+            self.buffer = signals_circular([self.center_freq], [300] ,self.num_devices, self.num_samples, self.x, self.y, antenna_distance)
         else:
             self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64)
         
@@ -232,6 +233,7 @@ class KrakenReceiver():
             for future in futures:
                 future.result()
     
+    #Rewrite of pyArgus spatial smoothing to match our buffer dimensions
     def spatial_smoothing_rewrite(self, P, direction): 
         
         M = self.num_devices
@@ -277,9 +279,10 @@ class KrakenReceiver():
         numpy.ndarray
             Array of estimated DOA angles in degrees.
         """
-        smoothed_buffer = self.buffer #self.spatial_smoothing(2, 'forward-backward')
-        spatial_corr_matrix = np.dot(smoothed_buffer, smoothed_buffer.conj().T)
-        #spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
+        #smoothed_buffer = self.spatial_smoothing_rewrite(2, 'forward-backward')
+        #spatial_corr_matrix = np.dot(smoothed_buffer, smoothed_buffer.conj().T)
+        spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
+        spatial_corr_matrix = np.divide(spatial_corr_matrix, self.num_samples)
         spatial_corr_matrix = pa.forward_backward_avg(spatial_corr_matrix)
         scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2, self.detection_range/2))
         doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=1)
@@ -607,8 +610,8 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         """
 
         if kraken.simulation:
-            kraken.buffer = signals_linear([kraken.center_freq], [0] ,kraken.num_devices, kraken.num_samples, x, antenna_distance)
-            #kraken.buffer = signals_circular([kraken.center_freq], [310] ,kraken.num_devices, kraken.num_samples, x, y, antenna_distance)
+            #kraken.buffer = signals_linear([kraken.center_freq], [0] ,kraken.num_devices, kraken.num_samples, x, antenna_distance)
+            kraken.buffer = signals_circular([kraken.center_freq], [310] ,kraken.num_devices, kraken.num_samples, x, y, antenna_distance)
         else:
             kraken.read_streams()
 
@@ -642,6 +645,20 @@ if __name__ == '__main__':
     center_freq = 434.4e6
     bandwidth =  2e5 
     gain = 40
+    
+    # # Circular setup
+
+    ant0 = [1,    0]
+    ant1 = [0.3090,    0.9511]
+    ant2 = [-0.8090,    0.5878]
+    ant3 = [-0.8090,   -0.5878]
+    ant4 = [0.3090,   -0.9511]
+    
+    # y = np.array([ant0[1], ant1[1], ant2[1], ant3[1], ant4[1]])
+    # x = np.array([ant0[0], ant1[0], ant2[0], ant3[0], ant4[0]])
+    # antenna_distance = 0.148857 # actual antenna distance: 0.175
+    
+    # Linear Setup
     y = np.array([0, 0, 0, 0, 0])
     x = np.array([0, 1, 2, 3, 4])
     antenna_distance = 0.175
