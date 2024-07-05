@@ -28,10 +28,10 @@ import logging
 import socket
 import time
 # Import IQ header module
-currentPath = os.path.dirname(os.path.realpath(__file__))
-rootPath = os.path.dirname(currentPath)
-sys.path.insert(0, os.path.join(rootPath, "_daq_core"))
-from iq_header import IQHeader
+# currentPath = os.path.dirname(os.path.realpath(__file__))
+# rootPath = os.path.dirname(currentPath)
+# sys.path.insert(0, os.path.join(rootPath, "_daq_core"))
+from heimdall_daq_firmware.iq_header import *
 
 class IQRecorder():
     def __init__(self, frame_count = 10000):

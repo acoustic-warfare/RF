@@ -44,9 +44,9 @@ import numba as nb
 from numba import jit, njit
 
 # Import HeIMDALL modules
-from iq_header import IQHeader
-from shmemIface import outShmemIface, inShmemIface
-import inter_module_messages
+from heimdall_daq_firmware.iq_header import IQHeader
+from heimdall_daq_firmware.shmemIface import outShmemIface, inShmemIface
+import heimdall_daq_firmware.inter_module_messages as inter_module_messages
 
 # Linear curve definition for curve fitting
 def linear_func(x, a, b):

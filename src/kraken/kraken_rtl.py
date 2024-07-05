@@ -281,12 +281,12 @@ def signals_circular(frequencies, angles, num_sensors, num_snapshots, antenna_po
         f_cal = f - frequency_offset
         signal = np.exp(1j * 2 * np.pi * f_cal * np.arange(num_snapshots) / num_snapshots)
         angle_rad = np.radians(angle)
-        steering_vector = np.exp(1j * 2 * np.pi * (sensor_positions_x[:, np.newaxis] * np.cos(angle_rad) +
-                                                   sensor_positions_y[:, np.newaxis] * np.sin(angle_rad)) / wavelength)
+        steering_vector = np.exp(1j * 2 * np.pi * (sensor_positions_x[:, np.newaxis] * np.sin(angle_rad) +
+                                                   sensor_positions_y[:, np.newaxis] * np.cos(angle_rad)) / wavelength)
         signals += steering_vector @ signal[np.newaxis, :]
     
     noise = np.sqrt(noise_power) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
-    return signals + 100 * noise
+    return signals + 300 * noise
     
 class RealTimePlotter(QtWidgets.QMainWindow):
     """
@@ -407,11 +407,11 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         and updates the corresponding PlotWidget curves (`doa_curve`, `fft_curve_0`, `fft_curve_1`, `fft_curve_2`).
         """
 
-        print(kraken.mode)
+        #print(kraken.mode)
 
         if kraken.mode == 'simulation':
-            #kraken.buffer = signals_linear([kraken.center_freq], [45] ,kraken.num_devices, kraken.num_samples, x, antenna_distance)
-            kraken.buffer = signals_circular([kraken.center_freq], [150] ,kraken.num_devices, kraken.num_samples, x, y, antenna_distance)
+            #kraken.buffer = signals_linear([kraken.center_freq], [300] ,kraken.num_devices, kraken.num_samples, x, antenna_distance)
+            kraken.buffer = signals_circular([kraken.center_freq], [10] ,kraken.num_devices, kraken.num_samples, x, y, antenna_distance)
         elif kraken.mode == 'normal':
             kraken.read_streams()
             
@@ -457,7 +457,7 @@ if __name__ == '__main__':
     x = np.array([ant0[0], ant1[0], ant2[0], ant3[0], ant4[0]])
     antenna_distance = 0.148857 # actual antenna distance: 0.175
 
-    # Linear Setup
+    #Linear Setup
     # y = np.array([0, 0, 0, 0, 0])
     # x = np.array([0, 1, 2, 3, 4])
     # antenna_distance = 0.175
