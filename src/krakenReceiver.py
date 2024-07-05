@@ -84,7 +84,7 @@ class KrakenReceiver():
 
         elif f_type == 'FIR':
             #Design a FIR filter using the firwin function
-            numtaps = 151  # Number of filter taps (filter length)
+            numtaps = 51  # Number of filter taps (filter length)
             fc = self.center_freq
             fs = 4*fc
             bandwidth = 0.3*fc
@@ -285,7 +285,7 @@ class KrakenReceiver():
         spatial_corr_matrix = np.divide(spatial_corr_matrix, self.num_samples)
         spatial_corr_matrix = pa.forward_backward_avg(spatial_corr_matrix)
         scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2, self.detection_range/2))
-        doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=4)
+        doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=1)
 
         return doa
 
@@ -623,26 +623,25 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         
         freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.sample_rate)
         
-        # ant0 = np.abs(fft(kraken.buffer[0]))
-        # ant1 = np.abs(fft(kraken.buffer[1]))
-        # ant2 = np.abs(fft(kraken.buffer[2]))
-        # ant3 = np.abs(fft(kraken.buffer[3]))
-        # ant4 = np.abs(fft(kraken.buffer[4]))  
+        ant0 = np.abs(fft(kraken.buffer[0]))
+        ant1 = np.abs(fft(kraken.buffer[1]))
+        ant2 = np.abs(fft(kraken.buffer[2]))
+        ant3 = np.abs(fft(kraken.buffer[3]))
+        ant4 = np.abs(fft(kraken.buffer[4]))  
         
         self.plot_doa_circle(doa_data)
-        # self.fft_curve_0.setData(freqs, ant0)
-        # self.fft_curve_1.setData(freqs, ant1)
-        # self.fft_curve_2.setData(freqs, ant2)
-        # self.fft_curve_3.setData(freqs, ant3)
-        # self.fft_curve_4.setData(freqs, ant4)
+        self.fft_curve_0.setData(freqs, ant0)
+        self.fft_curve_1.setData(freqs, ant1)
+        self.fft_curve_2.setData(freqs, ant2)
+        self.fft_curve_3.setData(freqs, ant3)
+        self.fft_curve_4.setData(freqs, ant4)
 
         #print(doa_data)
         print(np.argmax(doa_data))
-        kraken.buffer = np.zeros((kraken.num_devices, num_samples), dtype=np.complex64)
 
 if __name__ == '__main__':
     num_samples = 1024*128
-    sample_rate = 1.024e6
+    sample_rate = 2.048e6
     center_freq = 434.4e6
     bandwidth =  2e5 
     gain = 40
@@ -660,12 +659,12 @@ if __name__ == '__main__':
     # antenna_distance = 0.148857 # actual antenna distance: 0.175
     
     # Linear Setup
-    y = np.array([0, 0, 0,0,0])
-    x = np.array([0, 1, 2,3,4])
+    y = np.array([0, 0, 0, 0, 0])
+    x = np.array([0, 1, 2, 3, 4])
     antenna_distance = 0.175
 
     kraken = KrakenReceiver(center_freq, num_samples, 
-                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=5, simulation = 0, f_type = 'FIR', detection_range=360)
+                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=5, simulation = 1, f_type = 'none', detection_range=360)
     
     app = QtWidgets.QApplication(sys.argv)
     plotter = RealTimePlotter()

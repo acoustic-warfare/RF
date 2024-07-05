@@ -69,7 +69,7 @@ class KrakenReceiver():
             self.buffer = signals_linear([self.center_freq], [30] ,self.num_devices, self.num_samples, self.x, antenna_distance)
             #self.buffer = signals_circular([self.center_freq], [300] ,self.num_devices, self.num_samples, self.x, self.y, antenna_distance)
         else: 
-            if self.mode == 'normal' or self.mode == 'async':
+            if self.mode == 'normal':
                 self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64)
         
             self.devices = self._setup_devices()
@@ -197,7 +197,7 @@ class KrakenReceiver():
         spatial_corr_matrix = np.divide(spatial_corr_matrix, self.num_samples)
         spatial_corr_matrix = pa.forward_backward_avg(spatial_corr_matrix)
         scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2, self.detection_range/2))
-        doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=4)
+        doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=1)
 
         return doa
     
@@ -430,7 +430,6 @@ class RealTimePlotter(QtWidgets.QMainWindow):
 
         #print(doa_data)
         print(np.argmax(doa_data))
-        kraken.buffer = np.zeros((kraken.num_devices, num_samples), dtype=np.complex64)
 
 if __name__ == '__main__':
     num_samples = 1024*128
@@ -439,13 +438,13 @@ if __name__ == '__main__':
     gain = 40
 
     # Linear Setup
-    y = np.array([0, 0, 0,0,0])
-    x = np.array([0, 1, 2,3,4])
+    y = np.array([0, 0, 0, 0, 0])
+    x = np.array([0, 1, 2, 3, 4])
     antenna_distance = 0.175
 
 
     kraken = KrakenReceiver(center_freq, num_samples, 
-                           sample_rate, gain, antenna_distance, x, y, num_devices=5, mode = 1, f_type = 'FIR', detection_range=360)
+                           sample_rate, gain, antenna_distance, x, y, num_devices=5, mode = 2, f_type = 'FIR', detection_range=360)
     
 
     app = QtWidgets.QApplication(sys.argv)
