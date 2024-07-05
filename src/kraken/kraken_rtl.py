@@ -66,13 +66,14 @@ class KrakenReceiver():
 
 
         if self.mode == 'simulation':
-            self.buffer = signals_linear([self.center_freq], [30] ,self.num_devices, self.num_samples, self.x, antenna_distance)
-            #self.buffer = signals_circular([self.center_freq], [300] ,self.num_devices, self.num_samples, self.x, self.y, antenna_distance)
+            #self.buffer = signals_linear([self.center_freq], [30] ,self.num_devices, self.num_samples, self.x, antenna_distance)
+            self.buffer = signals_circular([self.center_freq], [300] ,self.num_devices, self.num_samples, self.x, self.y, antenna_distance)
         else: 
             if self.mode == 'normal':
                 self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64)
         
-            self.devices = self._setup_devices()
+        #self.devices, self.streams = self._setup_devices()
+        self.devices = self._setup_devices()
 
         if f_type == 'butter':
             #Build digital filter
@@ -87,7 +88,6 @@ class KrakenReceiver():
 
         elif f_type == 'FIR':
             #Design a FIR filter using the firwin function
-            numtaps = 51  # Number of filter taps (filter length)
             numtaps = 51  # Number of filter taps (filter length)
             fc = self.center_freq
             fs = 4*fc
@@ -120,6 +120,8 @@ class KrakenReceiver():
     
     def _setup_devices(self):
         devices = np.zeros(self.num_devices, dtype=object)
+        #streams = np.zeros(self.num_devices, dtype=object)
+        #loop = asyncio.get_event_loop()
 
         available_devices = RtlSdr.get_device_serial_addresses()
         selected_devices = (available_devices[1:] + available_devices[:1])[:self.num_devices]
@@ -127,19 +129,23 @@ class KrakenReceiver():
         for i, serial in enumerate(selected_devices):
             device = self._setup_device(serial)
             devices[i] = device
-            if self.mode == 'async':
-                loop = asyncio.get_event_loop()
-                loop.run_until_complete(self.start_stream(device, i))
-           
+            
+            # if self.mode == 'async':
+            #     stream = loop.create_task(self._setup_stream(device, i))
+            #     streams[i] = stream
+            #     return devices, streams
         return devices
     
-    async def start_stream(self, device, device_index):
+    # async def _setup_stream(self, device, device_index):
         
-        async for samples in device.stream():
-            self.buffer[device_index] = samples
+    #     async for samples in device.stream():
+    #         print(f"Writing to buffer for device {device_index}")
+    #         self.buffer[device_index] = samples
+            
 
-            await device.stop()
-            device.close()
+    # def start_streams(self):
+    #     loop = asyncio.get_event_loop()
+    #     loop.run_until_complete(asyncio.gather(*self.streams))
 
     
     def _read_stream(self, device):
@@ -237,7 +243,7 @@ def signals_linear(frequencies, angles, num_sensors, num_snapshots, antenna_posi
         signals += steering_vector @ signal[np.newaxis, :]
     
     noise = np.sqrt(noise_power) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
-    return signals + 200 * noise
+    return signals + 600 * noise
 
 
 def signals_circular(frequencies, angles, num_sensors, num_snapshots, antenna_positions_x, antenna_positions_y , antenna_distance, wavelength=1.0, noise_power=1e-3):
@@ -275,12 +281,12 @@ def signals_circular(frequencies, angles, num_sensors, num_snapshots, antenna_po
         f_cal = f - frequency_offset
         signal = np.exp(1j * 2 * np.pi * f_cal * np.arange(num_snapshots) / num_snapshots)
         angle_rad = np.radians(angle)
-        steering_vector = np.exp(1j * 2 * np.pi * (sensor_positions_x[:, np.newaxis] * np.cos(angle_rad) +
-                                                   sensor_positions_y[:, np.newaxis] * np.sin(angle_rad)) / wavelength)
+        steering_vector = np.exp(1j * 2 * np.pi * (sensor_positions_x[:, np.newaxis] * np.sin(angle_rad) +
+                                                   sensor_positions_y[:, np.newaxis] * np.cos(angle_rad)) / wavelength)
         signals += steering_vector @ signal[np.newaxis, :]
     
     noise = np.sqrt(noise_power) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
-    return signals #+ 100 * noise
+    return signals + 300 * noise
     
 class RealTimePlotter(QtWidgets.QMainWindow):
     """
@@ -300,6 +306,8 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.update_plots)
         self.timer.start(0)
+
+        #kraken.start_streams()
 
     def initUI(self):
         """
@@ -399,13 +407,14 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         and updates the corresponding PlotWidget curves (`doa_curve`, `fft_curve_0`, `fft_curve_1`, `fft_curve_2`).
         """
 
-        print(kraken.mode)
+        #print(kraken.mode)
 
         if kraken.mode == 'simulation':
-            kraken.buffer = signals_linear([kraken.center_freq], [45] ,kraken.num_devices, kraken.num_samples, x, antenna_distance)
-            #kraken.buffer = signals_circular([kraken.center_freq], [310] ,kraken.num_devices, kraken.num_samples, x, y, antenna_distance)
+            #kraken.buffer = signals_linear([kraken.center_freq], [300] ,kraken.num_devices, kraken.num_samples, x, antenna_distance)
+            kraken.buffer = signals_circular([kraken.center_freq], [10] ,kraken.num_devices, kraken.num_samples, x, y, antenna_distance)
         elif kraken.mode == 'normal':
             kraken.read_streams()
+            
 
         kraken.apply_filter()
 
@@ -437,10 +446,21 @@ if __name__ == '__main__':
     center_freq = 434.4e6
     gain = 40
 
-    # Linear Setup
-    y = np.array([0, 0, 0, 0, 0])
-    x = np.array([0, 1, 2, 3, 4])
-    antenna_distance = 0.175
+    #Circular setup
+    ant0 = [1,    0]
+    ant1 = [0.3090,    0.9511]
+    ant2 = [-0.8090,    0.5878]
+    ant3 = [-0.8090,   -0.5878]
+    ant4 = [0.3090,   -0.9511]
+    
+    y = np.array([ant0[1], ant1[1], ant2[1], ant3[1], ant4[1]])
+    x = np.array([ant0[0], ant1[0], ant2[0], ant3[0], ant4[0]])
+    antenna_distance = 0.148857 # actual antenna distance: 0.175
+
+    #Linear Setup
+    # y = np.array([0, 0, 0, 0, 0])
+    # x = np.array([0, 1, 2, 3, 4])
+    # antenna_distance = 0.175
 
 
     kraken = KrakenReceiver(center_freq, num_samples, 
