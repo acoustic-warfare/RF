@@ -243,7 +243,7 @@ def signals_linear(frequencies, angles, num_sensors, num_snapshots, antenna_posi
         signals += steering_vector @ signal[np.newaxis, :]
     
     noise = np.sqrt(noise_power) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
-    return signals #+ 600 * noise
+    return signals + 600 * noise
 
 
 def signals_circular(frequencies, angles, num_sensors, num_snapshots, antenna_positions_x, antenna_positions_y , antenna_distance, wavelength=1.0, noise_power=1e-3):
