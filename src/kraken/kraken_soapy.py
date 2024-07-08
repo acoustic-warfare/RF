@@ -455,7 +455,7 @@ def signals_linear(frequencies, angles, num_sensors, num_snapshots, antenna_posi
         signals += steering_vector @ signal[np.newaxis, :]
     
     noise = np.sqrt(noise_power) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
-    return signals + 200 * noise
+    return signals + 500* noise
 
 
 def signals_circular(frequencies, angles, num_sensors, num_snapshots, antenna_positions_x, antenna_positions_y , antenna_distance, wavelength=1.0, noise_power=1e-3):
@@ -628,7 +628,10 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         kraken.apply_filter()
 
         #doa_data = kraken.capon()
-        doa_data = kraken.music(2)
+        #doa_data = kraken.lpm(2)
+        #doa_data = kraken.bartlett()
+        #doa_data = kraken.mem()
+        doa_data = kraken.music(1)
         doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
         
         freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.sample_rate)
