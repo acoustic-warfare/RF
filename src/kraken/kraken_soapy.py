@@ -613,13 +613,8 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         """
 
         if kraken.simulation:
-<<<<<<< Updated upstream
-            kraken.buffer = signals_linear([kraken.center_freq], [0] ,kraken.num_devices, kraken.num_samples, x, antenna_distance)
-            #kraken.buffer = signals_circular([kraken.center_freq], [200] ,kraken.num_devices, kraken.num_samples, x, y, antenna_distance)
-=======
             #kraken.buffer = signals_linear([kraken.center_freq], [-45] ,kraken.num_devices, kraken.num_samples, x, antenna_distance)
             kraken.buffer = signals_circular([kraken.center_freq], [-60] ,kraken.num_devices, kraken.num_samples, x, y, antenna_distance)
->>>>>>> Stashed changes
         else:
             kraken.read_streams()
 
