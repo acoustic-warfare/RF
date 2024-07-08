@@ -66,11 +66,17 @@ class KrakenReceiver():
         self.real_offs = 00.0
 
         if simulation:
+<<<<<<< Updated upstream
             if self.circular:
                 self.buffer = signals_linear([self.center_freq], [0] ,self.num_devices, self.num_samples, self.x, antenna_distance)
             else:
                 self.buffer = signals_circular([self.center_freq], [0] ,self.num_devices, self.num_samples, self.x, self.y, antenna_distance)
             self.offs = 90.0
+=======
+            self.buffer = signals_linear([self.center_freq], [90] ,self.num_devices, self.num_samples, self.x, antenna_distance)
+            #self.buffer = signals_circular([self.center_freq], [0] ,self.num_devices, self.num_samples, self.x, self.y, antenna_distance)
+            self.offs = -90.0
+>>>>>>> Stashed changes
         else:
             self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64)
             self.offs = self.real_offs
@@ -453,7 +459,7 @@ def signals_linear(frequencies, angles, num_sensors, num_snapshots, antenna_posi
         signals += steering_vector @ signal[np.newaxis, :]
     
     noise = np.sqrt(noise_power) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
-    return signals + 200 * noise
+    return signals + 500* noise
 
 
 def signals_circular(frequencies, angles, num_sensors, num_snapshots, antenna_positions_x, antenna_positions_y , antenna_distance, wavelength=1.0, noise_power=1e-3):
@@ -616,17 +622,29 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         """
 
         if kraken.simulation:
+<<<<<<< Updated upstream
             if kraken.circular:
                 kraken.buffer = signals_linear([kraken.center_freq], [90] ,kraken.num_devices, kraken.num_samples, x, antenna_distance)
             else:
                 kraken.buffer = signals_circular([kraken.center_freq], [90] ,kraken.num_devices, kraken.num_samples, x, y, antenna_distance)
+=======
+            kraken.buffer = signals_linear([kraken.center_freq], [30] ,kraken.num_devices, kraken.num_samples, x, antenna_distance)
+            #kraken.buffer = signals_circular([kraken.center_freq], [160], kraken.num_devices, kraken.num_samples, x, y, antenna_distance)
+>>>>>>> Stashed changes
         else:
             kraken.read_streams()
 
         kraken.apply_filter()
 
         #doa_data = kraken.capon()
+<<<<<<< Updated upstream
         doa_data = kraken.music(2)
+=======
+        #doa_data = kraken.lpm(2)
+        #doa_data = kraken.bartlett()
+        #doa_data = kraken.mem()
+        doa_data = kraken.music(1)
+>>>>>>> Stashed changes
         doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
         
         freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.sample_rate)
@@ -656,6 +674,7 @@ if __name__ == '__main__':
     gain = 40
     circular = 0
     
+<<<<<<< Updated upstream
     if circular:
         # Circular setup
         ant0 = [1,    0]
@@ -676,6 +695,27 @@ if __name__ == '__main__':
     kraken = KrakenReceiver(center_freq, num_samples, sample_rate, bandwidth, gain, 
                             antenna_distance, x, y, num_devices=5, 
                             simulation = 1, circular = circular, f_type = 'FIR', detection_range=360)
+=======
+    #Circular setup
+
+    ant0 = [1,    0]
+    ant1 = [0.3090,    0.9511]
+    ant2 = [-0.8090,    0.5878]
+    ant3 = [-0.8090,   -0.5878]
+    ant4 = [0.3090,   -0.9511]
+    
+    # y = np.array([ant0[1], ant1[1], ant2[1], ant3[1], ant4[1]])
+    # x = np.array([ant0[0], ant1[0], ant2[0], ant3[0], ant4[0]])
+    # antenna_distance = 0.148857 # actual antenna distance: 0.175
+    
+    # Linear Setup
+    y = np.array([0, 0, 0, 0, 0])
+    x = np.array([0, 1, 2, 3, 4])
+    antenna_distance = 0.175
+
+    kraken = KrakenReceiver(center_freq, num_samples, 
+                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=5, simulation = 1, f_type = 'FIR', detection_range=360)
+>>>>>>> Stashed changes
     
     app = QtWidgets.QApplication(sys.argv)
     plotter = RealTimePlotter()
