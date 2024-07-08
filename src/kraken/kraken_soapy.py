@@ -62,12 +62,15 @@ class KrakenReceiver():
         self.x = x * antenna_distance
         self.y = y * antenna_distance
         self.detection_range = detection_range
+        self.real_offs = 00.0
 
         if simulation:
             #self.buffer = signals_linear([self.center_freq], [30] ,self.num_devices, self.num_samples, self.x, antenna_distance)
             self.buffer = signals_circular([self.center_freq], [0] ,self.num_devices, self.num_samples, self.x, self.y, antenna_distance)
+            self.offs = 90.0
         else:
             self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64)
+            self.offs = self.real_offs
         
         
 
@@ -241,15 +244,7 @@ class KrakenReceiver():
         N = self.num_samples  
         L = M - P + 1  # Number of subarrays    
 
-        Rss = np.zeros((P, P), dtype=complex)  # Spatially smoothed correlation matrix 
-
-        if direction == "forward" or direction == "forward-backward":            
-            for l in range(L):             
-                Rxx = np.zeros((P, P), dtype=complex)  # Correlation matrix allocation 
-                for n in np.arange(0,N,1): 
-                    Rxx += np.outer(self.buffer[l:l+P, n], np.conj(self.buffer[l:l+P, n])) 
-                np.divide(Rxx, N)  # normalization 
-                Rss += Rxx 
+        Rss = np.zeros((P, P), dtype=complex)  # Spatially smoothed correlation matrix np.arange(-self.detection_range/2 + self.real_offs, self.detection_range/2 + self.real_offs))
 
         if direction == "backward" or direction == "forward-backward":         
             for l in range(L): 
@@ -285,7 +280,7 @@ class KrakenReceiver():
         spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
         spatial_corr_matrix = np.divide(spatial_corr_matrix, self.num_samples)
         spatial_corr_matrix = pa.forward_backward_avg(spatial_corr_matrix)
-        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2, self.detection_range/2))
+        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
         doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=signal_dimension)
 
         return doa
@@ -447,13 +442,11 @@ def signals_linear(frequencies, angles, num_sensors, num_snapshots, antenna_posi
     sensor_positions = antenna_positions * antenna_distance
     signals = np.zeros((num_sensors, num_snapshots), dtype=complex)
     frequency_offset = frequencies[0]
-    angle_offset = 90.0
 
     for f, angle in zip(frequencies, angles):
-        angle_cal = angle - angle_offset
         f_cal = f - frequency_offset
         signal = np.exp(1j * 2 * np.pi * f_cal * np.arange(num_snapshots) / num_snapshots)
-        steering_vector = np.exp(1j * 2 * np.pi * sensor_positions[:, np.newaxis] * np.sin(np.radians(angle_cal)) / wavelength)
+        steering_vector = np.exp(1j * 2 * np.pi * sensor_positions[:, np.newaxis] * np.sin(np.radians(angle)) / wavelength)
         signals += steering_vector @ signal[np.newaxis, :]
     
     noise = np.sqrt(noise_power) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
@@ -490,13 +483,11 @@ def signals_circular(frequencies, angles, num_sensors, num_snapshots, antenna_po
     
     signals = np.zeros((num_sensors, num_snapshots), dtype=complex)
     frequency_offset = frequencies[0]
-    angle_offset = 90.0
 
     for f, angle in zip(frequencies, angles):
-        angle_cal = angle - angle_offset
         f_cal = f - frequency_offset
         signal = np.exp(1j * 2 * np.pi * f_cal * np.arange(num_snapshots) / num_snapshots)
-        angle_rad = np.radians(angle_cal)
+        angle_rad = np.radians(angle)
         steering_vector = np.exp(1j * 2 * np.pi * (sensor_positions_x[:, np.newaxis] * np.cos(angle_rad) +
                                                    sensor_positions_y[:, np.newaxis] * np.sin(angle_rad)) / wavelength)
         signals += steering_vector @ signal[np.newaxis, :]
@@ -648,8 +639,8 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.fft_curve_3.setData(freqs, ant3)
         self.fft_curve_4.setData(freqs, ant4)
 
-        #print(doa_data)
         print(np.argmax(doa_data))
+        # print(doa_data)
         kraken.buffer = np.zeros((kraken.num_devices, kraken.num_samples), dtype=np.complex64)
 
 if __name__ == '__main__':
