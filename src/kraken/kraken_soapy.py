@@ -64,8 +64,8 @@ class KrakenReceiver():
         self.detection_range = detection_range
 
         if simulation:
-            self.buffer = signals_linear([self.center_freq], [30] ,self.num_devices, self.num_samples, self.x, antenna_distance)
-            #self.buffer = signals_circular([self.center_freq], [300] ,self.num_devices, self.num_samples, self.x, self.y, antenna_distance)
+            #self.buffer = signals_linear([self.center_freq], [30] ,self.num_devices, self.num_samples, self.x, antenna_distance)
+            self.buffer = signals_circular([self.center_freq], [300] ,self.num_devices, self.num_samples, self.x, self.y, antenna_distance)
         else:
             self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64)
         
@@ -103,7 +103,7 @@ class KrakenReceiver():
             # Convert to discrete-time system
             dt = 1e-6
             discrete_system = signal.cont2discrete((num, den), dt)
-            #self.b, self.a = discrete_system[0], discrete_system[1]/home/ljudkriget/.local/lib/python3.10/site-packages/scipy/signal/_lti_conversion.py:74: BadCoefficients: Badly conditioned filter coefficients (numerator): the results may be meaningless
+            #self.b, self.a = discrete_system[0], discrete_system[1]
             self.b = np.array(discrete_system[0].flatten(), dtype=np.float64)
             self.a = np.array(discrete_system[1].flatten(), dtype=np.float64)    
 
@@ -124,7 +124,7 @@ class KrakenReceiver():
         device.setSampleRate(SOAPY_SDR_RX, 0, self.sample_rate)
         device.setFrequency(SOAPY_SDR_RX, 0, self.center_freq)
         device.setGain(SOAPY_SDR_RX, 0, self.gain)
-        #device.setBandwidth(SOAPY_SDR_RX, 0, self.bandwidth)
+        device.setBandwidth(SOAPY_SDR_RX, 0, self.bandwidth)
         device.setHardwareTime(hw_time)
         return device
     
@@ -272,7 +272,7 @@ class KrakenReceiver():
 
         return Rss
 
-    def music(self):
+    def music(self, signal_dimension):
         """
         Performs Direction of Arrival (DOA) estimation using the MEM algorithm.
 
@@ -286,7 +286,7 @@ class KrakenReceiver():
         spatial_corr_matrix = np.divide(spatial_corr_matrix, self.num_samples)
         spatial_corr_matrix = pa.forward_backward_avg(spatial_corr_matrix)
         scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2, self.detection_range/2))
-        doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=1)
+        doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=signal_dimension)
 
         return doa
 
@@ -299,6 +299,8 @@ class KrakenReceiver():
             Array of estimated DOA angles in degrees.
         """
         spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
+        spatial_corr_matrix = np.divide(spatial_corr_matrix, self.num_samples)
+        spatial_corr_matrix = pa.forward_backward_avg(spatial_corr_matrix)
         scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2, self.detection_range/2))
         doa = pa.DOA_MEM(spatial_corr_matrix,scanning_vectors)
 
@@ -313,6 +315,8 @@ class KrakenReceiver():
             Array of estimated DOA angles in degrees.
         """
         spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
+        spatial_corr_matrix = np.divide(spatial_corr_matrix, self.num_samples)
+        spatial_corr_matrix = pa.forward_backward_avg(spatial_corr_matrix)
         scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2, self.detection_range/2))
         doa = pa.DOA_Capon(spatial_corr_matrix,scanning_vectors)
 
@@ -327,6 +331,8 @@ class KrakenReceiver():
             Array of estimated DOA angles in degrees.
         """
         spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
+        spatial_corr_matrix = np.divide(spatial_corr_matrix, self.num_samples)
+        spatial_corr_matrix = pa.forward_backward_avg(spatial_corr_matrix)
         scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2, self.detection_range/2))
         doa = pa.DOA_Bartlett(spatial_corr_matrix,scanning_vectors)
 
@@ -345,6 +351,8 @@ class KrakenReceiver():
             Array of estimated DOA angles in degrees.
         """
         spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T)
+        spatial_corr_matrix = np.divide(spatial_corr_matrix, self.num_samples)
+        spatial_corr_matrix = pa.forward_backward_avg(spatial_corr_matrix)
         scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2, self.detection_range/2))
         doa = pa.DOA_LPM(spatial_corr_matrix,scanning_vectors, element_select)
 
@@ -448,7 +456,7 @@ def signals_linear(frequencies, angles, num_sensors, num_snapshots, antenna_posi
         signals += steering_vector @ signal[np.newaxis, :]
     
     noise = np.sqrt(noise_power) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
-    return signals #+ 600 * noise
+    return signals + 400 * noise
 
 
 def signals_circular(frequencies, angles, num_sensors, num_snapshots, antenna_positions_x, antenna_positions_y , antenna_distance, wavelength=1.0, noise_power=1e-3):
@@ -491,7 +499,7 @@ def signals_circular(frequencies, angles, num_sensors, num_snapshots, antenna_po
         signals += steering_vector @ signal[np.newaxis, :]
     
     noise = np.sqrt(noise_power) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
-    return signals #+ 100 * noise
+    return signals + 100 * noise
     
 class RealTimePlotter(QtWidgets.QMainWindow):
     """
@@ -611,14 +619,15 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         """
 
         if kraken.simulation:
-            kraken.buffer = signals_linear([kraken.center_freq], [30] ,kraken.num_devices, kraken.num_samples, x, antenna_distance)
-            #kraken.buffer = signals_circular([kraken.center_freq], [310] ,kraken.num_devices, kraken.num_samples, x, y, antenna_distance)
+            kraken.buffer = signals_linear([kraken.center_freq], [135] ,kraken.num_devices, kraken.num_samples, x, antenna_distance)
+            #kraken.buffer = signals_circular([kraken.center_freq], [200] ,kraken.num_devices, kraken.num_samples, x, y, antenna_distance)
         else:
             kraken.read_streams()
 
         kraken.apply_filter()
 
-        doa_data = kraken.music()
+        #doa_data = kraken.capon()
+        doa_data = kraken.music(2)
         doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
         
         freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.sample_rate)
@@ -665,7 +674,7 @@ if __name__ == '__main__':
     antenna_distance = 0.175
 
     kraken = KrakenReceiver(center_freq, num_samples, 
-                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=5, simulation = 2, f_type = 'FIR', detection_range=360)
+                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=5, simulation = 1, f_type = 'FIR', detection_range=360)
     
     app = QtWidgets.QApplication(sys.argv)
     plotter = RealTimePlotter()
