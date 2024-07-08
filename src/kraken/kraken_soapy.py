@@ -46,8 +46,9 @@ class KrakenReceiver():
     filter : scipy filter object
         A signal processing filter
     """
-    def __init__(self, center_freq, num_samples, sample_rate, bandwidth, gain, antenna_distance, x, y, 
-                 num_devices=5, simulation = 0, circular = 0, f_type = 'LTI', detection_range = 360):
+    def __init__(self, center_freq, num_samples, sample_rate, bandwidth, gain, 
+                 antenna_distance, x, y, num_devices=5, circular = 0,
+                 simulation = 0, simulation_angles = [0], simulation_frequencies = [434.4e6], f_type = 'LTI', detection_range = 360):
         
         self.num_devices = num_devices
         self.center_freq = center_freq
@@ -59,6 +60,8 @@ class KrakenReceiver():
         self.devices, self.streams = (0,0) #self._setup_devices()
 
         self.simulation = simulation
+        self.simulation_angles = simulation_angles
+        self.simulation_frequencies = simulation_frequencies
         self.circular = circular
         self.x = x * antenna_distance
         self.y = y * antenna_distance
@@ -67,16 +70,15 @@ class KrakenReceiver():
 
         if simulation:
             if self.circular:
-                self.buffer = signals_linear([self.center_freq], [0] ,self.num_devices, self.num_samples, self.x, antenna_distance)
+                self.buffer = signals_linear(self.simulation_frequencies, self.simulation_angles ,self.num_devices, self.num_samples, self.x, antenna_distance)
             else:
-                self.buffer = signals_circular([self.center_freq], [0] ,self.num_devices, self.num_samples, self.x, self.y, antenna_distance)
-            self.offs = 90.0
+                self.buffer = signals_circular(self.simulation_frequencies, self.simulation_angles ,self.num_devices, self.num_samples, self.x, self.y, antenna_distance)
+            self.offs = 180.0
         else:
             self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64)
             self.offs = self.real_offs
         
         
-
         if f_type == 'butter':
             #Build digital filter
             fc = self.center_freq
@@ -617,9 +619,9 @@ class RealTimePlotter(QtWidgets.QMainWindow):
 
         if kraken.simulation:
             if kraken.circular:
-                kraken.buffer = signals_linear([kraken.center_freq], [90] ,kraken.num_devices, kraken.num_samples, x, antenna_distance)
+                kraken.buffer = signals_linear(kraken.simulation_frequencies, kraken.simulation_angles ,kraken.num_devices, kraken.num_samples, x, antenna_distance)
             else:
-                kraken.buffer = signals_circular([kraken.center_freq], [90] ,kraken.num_devices, kraken.num_samples, x, y, antenna_distance)
+                kraken.buffer = signals_circular(kraken.simulation_frequencies, kraken.simulation_angles ,kraken.num_devices, kraken.num_samples, x, y, antenna_distance)
         else:
             kraken.read_streams()
 
@@ -674,8 +676,9 @@ if __name__ == '__main__':
         antenna_distance = 0.175
 
     kraken = KrakenReceiver(center_freq, num_samples, sample_rate, bandwidth, gain, 
-                            antenna_distance, x, y, num_devices=5, 
-                            simulation = 1, circular = circular, f_type = 'FIR', detection_range=360)
+                            antenna_distance, x, y, num_devices=5, circular = circular,
+                            simulation = 1, simulation_angles = [0], simulation_frequencies = [center_freq],
+                            f_type = 'FIR', detection_range=360)
     
     app = QtWidgets.QApplication(sys.argv)
     plotter = RealTimePlotter()
