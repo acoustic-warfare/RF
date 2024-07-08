@@ -496,7 +496,7 @@ def signals_circular(frequencies, angles, num_sensors, num_snapshots, antenna_po
         signals += steering_vector @ signal[np.newaxis, :]
     
     noise = np.sqrt(noise_power) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
-    return signals + 100 * noise
+    return signals + 200 * noise
     
 class RealTimePlotter(QtWidgets.QMainWindow):
     """
@@ -626,7 +626,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         kraken.apply_filter()
 
         #doa_data = kraken.capon()
-        doa_data = kraken.music(1)
+        doa_data = kraken.music(2)
         doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
         
         freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.sample_rate)
@@ -658,13 +658,11 @@ if __name__ == '__main__':
     
     if circular:
         # Circular setup
-
         ant0 = [1,    0]
         ant1 = [0.3090,    0.9511]
         ant2 = [-0.8090,    0.5878]
         ant3 = [-0.8090,   -0.5878]
         ant4 = [0.3090,   -0.9511]
-        
         y = np.array([ant0[1], ant1[1], ant2[1], ant3[1], ant4[1]])
         x = np.array([ant0[0], ant1[0], ant2[0], ant3[0], ant4[0]])
         antenna_distance = 0.148857 # (radius) actual antenna distance: 0.175
@@ -675,8 +673,9 @@ if __name__ == '__main__':
         x = np.array([0, 1, 2, 3, 4])
         antenna_distance = 0.175
 
-    kraken = KrakenReceiver(center_freq, num_samples, 
-                           sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=5, simulation = 1, circular = circular, f_type = 'FIR', detection_range=360)
+    kraken = KrakenReceiver(center_freq, num_samples, sample_rate, bandwidth, gain, 
+                            antenna_distance, x, y, num_devices=5, 
+                            simulation = 1, circular = circular, f_type = 'FIR', detection_range=360)
     
     app = QtWidgets.QApplication(sys.argv)
     plotter = RealTimePlotter()
