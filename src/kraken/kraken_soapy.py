@@ -65,7 +65,7 @@ class KrakenReceiver():
 
         if simulation:
             #self.buffer = signals_linear([self.center_freq], [30] ,self.num_devices, self.num_samples, self.x, antenna_distance)
-            self.buffer = signals_circular([self.center_freq], [300] ,self.num_devices, self.num_samples, self.x, self.y, antenna_distance)
+            self.buffer = signals_circular([self.center_freq], [0] ,self.num_devices, self.num_samples, self.x, self.y, antenna_distance)
         else:
             self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64)
         
@@ -447,12 +447,13 @@ def signals_linear(frequencies, angles, num_sensors, num_snapshots, antenna_posi
     sensor_positions = antenna_positions * antenna_distance
     signals = np.zeros((num_sensors, num_snapshots), dtype=complex)
     frequency_offset = frequencies[0]
-
+    angle_offset = 90.0
 
     for f, angle in zip(frequencies, angles):
+        angle_cal = angle - angle_offset
         f_cal = f - frequency_offset
         signal = np.exp(1j * 2 * np.pi * f_cal * np.arange(num_snapshots) / num_snapshots)
-        steering_vector = np.exp(1j * 2 * np.pi * sensor_positions[:, np.newaxis] * np.sin(np.radians(angle)) / wavelength)
+        steering_vector = np.exp(1j * 2 * np.pi * sensor_positions[:, np.newaxis] * np.sin(np.radians(angle_cal)) / wavelength)
         signals += steering_vector @ signal[np.newaxis, :]
     
     noise = np.sqrt(noise_power) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
@@ -489,11 +490,13 @@ def signals_circular(frequencies, angles, num_sensors, num_snapshots, antenna_po
     
     signals = np.zeros((num_sensors, num_snapshots), dtype=complex)
     frequency_offset = frequencies[0]
+    angle_offset = 90.0
 
     for f, angle in zip(frequencies, angles):
+        angle_cal = angle - angle_offset
         f_cal = f - frequency_offset
         signal = np.exp(1j * 2 * np.pi * f_cal * np.arange(num_snapshots) / num_snapshots)
-        angle_rad = np.radians(angle)
+        angle_rad = np.radians(angle_cal)
         steering_vector = np.exp(1j * 2 * np.pi * (sensor_positions_x[:, np.newaxis] * np.cos(angle_rad) +
                                                    sensor_positions_y[:, np.newaxis] * np.sin(angle_rad)) / wavelength)
         signals += steering_vector @ signal[np.newaxis, :]
@@ -619,7 +622,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         """
 
         if kraken.simulation:
-            kraken.buffer = signals_linear([kraken.center_freq], [135] ,kraken.num_devices, kraken.num_samples, x, antenna_distance)
+            kraken.buffer = signals_linear([kraken.center_freq], [0] ,kraken.num_devices, kraken.num_samples, x, antenna_distance)
             #kraken.buffer = signals_circular([kraken.center_freq], [200] ,kraken.num_devices, kraken.num_samples, x, y, antenna_distance)
         else:
             kraken.read_streams()
