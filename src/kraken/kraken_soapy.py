@@ -613,15 +613,20 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         """
 
         if kraken.simulation:
+<<<<<<< Updated upstream
             kraken.buffer = signals_linear([kraken.center_freq], [0] ,kraken.num_devices, kraken.num_samples, x, antenna_distance)
             #kraken.buffer = signals_circular([kraken.center_freq], [200] ,kraken.num_devices, kraken.num_samples, x, y, antenna_distance)
+=======
+            #kraken.buffer = signals_linear([kraken.center_freq], [-45] ,kraken.num_devices, kraken.num_samples, x, antenna_distance)
+            kraken.buffer = signals_circular([kraken.center_freq], [-60] ,kraken.num_devices, kraken.num_samples, x, y, antenna_distance)
+>>>>>>> Stashed changes
         else:
             kraken.read_streams()
 
         kraken.apply_filter()
 
         #doa_data = kraken.capon()
-        doa_data = kraken.music(2)
+        doa_data = kraken.music(1)
         doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
         
         freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.sample_rate)
@@ -658,14 +663,14 @@ if __name__ == '__main__':
     ant3 = [-0.8090,   -0.5878]
     ant4 = [0.3090,   -0.9511]
     
-    # y = np.array([ant0[1], ant1[1], ant2[1], ant3[1], ant4[1]])
-    # x = np.array([ant0[0], ant1[0], ant2[0], ant3[0], ant4[0]])
-    # antenna_distance = 0.148857 # actual antenna distance: 0.175
+    y = np.array([ant0[1], ant1[1], ant2[1], ant3[1], ant4[1]])
+    x = np.array([ant0[0], ant1[0], ant2[0], ant3[0], ant4[0]])
+    antenna_distance = 0.148857 # actual antenna distance: 0.175
     
     # Linear Setup
-    y = np.array([0, 0, 0, 0, 0])
-    x = np.array([0, 1, 2, 3, 4])
-    antenna_distance = 0.175
+    # y = np.array([0, 0, 0, 0, 0])
+    # x = np.array([0, 1, 2, 3, 4])
+    # antenna_distance = 0.175
 
     kraken = KrakenReceiver(center_freq, num_samples, 
                            sample_rate, bandwidth, gain, antenna_distance, x, y, num_devices=5, simulation = 1, f_type = 'FIR', detection_range=360)
