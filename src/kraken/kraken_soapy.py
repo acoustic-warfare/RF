@@ -293,6 +293,86 @@ class KrakenReceiver():
 
         return doa
 
+    def music2(self, signal_dimension):
+        """
+        Performs Direction of Arrival (DOA) estimation using the MUSIC algorithm.
+
+        Returns:
+        numpy.ndarray
+            Array of estimated DOA angles in degrees.
+        """
+        def forward_backward_avg(R):
+            """
+            Perform forward-backward spatial smoothing.
+            """
+            J = np.fliplr(np.eye(R.shape[0]))
+            R_fb = 0.5 * (R + J @ R.conj().T @ J)
+            return R_fb
+        
+        def gen_scanning_vectors(num_devices, x, y, angles):
+            """
+            Generate scanning vectors for a given array geometry and angles.
+            """
+            scanning_vectors = []
+            for angle in angles:
+                angle_rad = np.radians(angle)
+                direction_vector = np.array([np.cos(angle_rad), np.sin(angle_rad)])
+                steering_vector = np.exp(1j * 2 * np.pi * (np.vstack((x, y)).T @ direction_vector))
+                scanning_vectors.append(steering_vector)
+            return np.array(scanning_vectors).T
+        
+        def DOA_MUSIC(R, scanning_vectors, signal_dimension):
+            """
+            Perform DOA estimation using the MUSIC algorithm.
+            """
+            # Eigenvalue decomposition
+            eigenvalues, eigenvectors = np.linalg.eigh(R)
+            # Sort eigenvalues and corresponding eigenvectors
+            idx = np.argsort(eigenvalues)[::-1]
+            eigenvectors = eigenvectors[:, idx]
+            
+            # Noise subspace
+            En = eigenvectors[:, signal_dimension:]
+            
+            # Compute MUSIC spectrum
+            P = np.zeros(scanning_vectors.shape[1])
+            for i in range(scanning_vectors.shape[1]):
+                sv = scanning_vectors[:, i]
+                P[i] = 1 / np.abs(sv.conj().T @ En @ En.conj().T @ sv)
+            
+            # Find peaks in the MUSIC spectrum
+            peaks = np.argmax(P)
+            doa_angles = np.degrees(np.arcsin(np.linspace(-1, 1, scanning_vectors.shape[1])[peaks]))
+            return doa_angles
+        
+        # Compute the spatial correlation matrix
+        spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T) / self.num_samples
+        
+        # Apply forward-backward averaging
+        spatial_corr_matrix = forward_backward_avg(spatial_corr_matrix)
+        
+        # Generate scanning vectors
+        angles = np.arange(-self.detection_range / 2 + self.offs, self.detection_range / 2 + self.offs)
+        scanning_vectors = gen_scanning_vectors(self.num_devices, self.x, self.y, angles)
+        
+        # Perform DOA estimation
+        doa = DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension)
+        return doa
+        
+        # Compute the spatial correlation matrix
+        spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T) / self.num_samples
+        
+        # Apply forward-backward averaging
+        spatial_corr_matrix = forward_backward_avg(spatial_corr_matrix)
+        
+        # Generate scanning vectors
+        angles = np.arange(-self.detection_range / 2 + self.offs, self.detection_range / 2 + self.offs)
+        scanning_vectors = gen_scanning_vectors(self.num_devices, self.x, self.y, angles)
+        
+        # Perform DOA estimation
+        doa = DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension)
+        return doa
+
     def mem(self):
         """
         Performs Direction of Arrival (DOA) estimation using the MEM algorithm.
@@ -538,14 +618,11 @@ def signals_arbitrary(frequencies, angles, num_sensors, num_snapshots, antenna_p
     # Initialize the array to store the received signals
     signals = np.zeros((num_sensors, num_snapshots), dtype=complex)
     
-    # Frequency offset is taken as the first frequency in the list
-    frequency_offset = frequencies[0]
-
     # Generate the received signal for each frequency and angle pair
     for f, angle in zip(frequencies, angles):
         # Calculate the baseband signal
-        f_cal = f - frequency_offset
-        signal = np.exp(1j * 2 * np.pi * f_cal * np.arange(num_snapshots) / num_snapshots)
+        time = np.arange(num_snapshots)
+        signal = np.exp(1j * 2 * np.pi * f * time / num_snapshots)
         
         # Convert the angle to radians
         angle_rad = np.radians(angle)
@@ -555,12 +632,13 @@ def signals_arbitrary(frequencies, angles, num_sensors, num_snapshots, antenna_p
         steering_vector = np.exp(1j * 2 * np.pi * (antenna_positions @ direction_vector) / wavelength)
         
         # Add the contribution of this signal to the overall received signal
-        signals += steering_vector[:, np.newaxis] @ signal[np.newaxis, :]
+        signals += steering_vector[:, np.newaxis] * signal[np.newaxis, :]
     
     # Additive white Gaussian noise
     noise = np.sqrt(noise_power / 2) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
     
     return signals + noise
+
 
 class RealTimePlotter(QtWidgets.QMainWindow):
     """
@@ -690,7 +768,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         kraken.apply_filter()
 
         #doa_data = kraken.capon()
-        doa_data = kraken.music(kraken.music_dim)
+        doa_data = kraken.music2(kraken.music_dim)
         doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
         
         freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.sample_rate)
@@ -718,7 +796,7 @@ if __name__ == '__main__':
     center_freq = 434.4e6
     bandwidth =  2e5 
     gain = 40
-    circular = 0
+    circular = 1
     
     if circular:
         # Circular setup
