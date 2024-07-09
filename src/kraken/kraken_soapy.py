@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import time
 import pyargus.directionEstimation as pa
 import pyqtgraph as pg
+import os
 from PyQt5 import QtWidgets
 from pyqtgraph.Qt import QtCore
 from SoapySDR import *
@@ -72,10 +73,15 @@ class KrakenReceiver():
         self.real_offs = 00.0
 
         if simulation:
-            if self.circular:
-                self.buffer = signals_linear(self.simulation_frequencies, self.simulation_angles ,self.num_devices, self.num_samples, self.x, antenna_distance, noise_power = self.simulation_noise)
+            if simulation == 2:
+                self.recorded_samples = sorted(os.listdir('src/kraken/iq_samples'))
+                self.buffer = np.load(os.path.join('src/kraken/iq_samples', self.recorded_samples[0]))
+                self.recorded_samples.pop(0)
             else:
-                self.buffer = signals_arbitrary(self.simulation_frequencies, self.simulation_angles ,self.num_devices, self.num_samples, self.x, self.y, antenna_distance, noise_power = self.simulation_noise)
+                if self.circular:
+                    self.buffer = signals_linear(self.simulation_frequencies, self.simulation_angles ,self.num_devices, self.num_samples, self.x, antenna_distance, noise_power = self.simulation_noise)
+                else:
+                    self.buffer = signals_arbitrary(self.simulation_frequencies, self.simulation_angles ,self.num_devices, self.num_samples, self.x, self.y, antenna_distance, noise_power = self.simulation_noise)
             self.offs = 180.0
         else:
             self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64)
@@ -680,10 +686,15 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         """
 
         if kraken.simulation:
-            if kraken.circular:
-                kraken.buffer = signals_linear(kraken.simulation_frequencies, kraken.simulation_angles ,kraken.num_devices, kraken.num_samples, x, antenna_distance, noise_power = kraken.simulation_noise)
+            if kraken.simulation == 2:
+                #print(kraken.recorded_samples)
+                kraken.buffer = np.load(os.path.join('src/kraken/iq_samples', kraken.recorded_samples[0]))
+                kraken.recorded_samples.pop(0)
             else:
-                kraken.buffer = signals_arbitrary(kraken.simulation_frequencies, kraken.simulation_angles ,kraken.num_devices, kraken.num_samples, x, y, antenna_distance, noise_power = kraken.simulation_noise)
+                if kraken.circular:
+                    kraken.buffer = signals_linear(kraken.simulation_frequencies, kraken.simulation_angles ,kraken.num_devices, kraken.num_samples, x, antenna_distance, noise_power = kraken.simulation_noise)
+                else:
+                    kraken.buffer = signals_arbitrary(kraken.simulation_frequencies, kraken.simulation_angles ,kraken.num_devices, kraken.num_samples, x, y, antenna_distance, noise_power = kraken.simulation_noise)
         else:
             kraken.read_streams()
 
@@ -709,11 +720,10 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.fft_curve_4.setData(freqs, ant4)
 
         print(np.argmax(doa_data))
-        # print(doa_data)
         kraken.buffer = np.zeros((kraken.num_devices, kraken.num_samples), dtype=np.complex64)
 
 if __name__ == '__main__':
-    num_samples = 1024*128
+    num_samples = 1048576 #1024*128
     sample_rate = 1.024e6
     center_freq = 434.4e6
     bandwidth =  2e5 
@@ -739,7 +749,7 @@ if __name__ == '__main__':
 
     kraken = KrakenReceiver(center_freq, num_samples, sample_rate, bandwidth, gain,    
                             antenna_distance, x, y, num_devices=5, circular = circular,
-                            simulation = 1, simulation_angles = [0], simulation_frequencies = [center_freq], simulation_noise = 1e2,
+                            simulation = 2, simulation_angles = [0], simulation_frequencies = [center_freq], simulation_noise = 1e2,
                             f_type = 'FIR', detection_range=360, music_dim = 3)
     
     app = QtWidgets.QApplication(sys.argv)
