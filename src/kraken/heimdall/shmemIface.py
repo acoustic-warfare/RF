@@ -139,6 +139,7 @@ class outShmemIface:
 
 class inShmemIface:
     def __init__(self, shmem_name, ctr_fifo_path="_data_control/", read_timeout=None):
+        print("Trace 0")
         self.init_ok = True
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)
@@ -148,19 +149,24 @@ class inShmemIface:
         self.memories = []
         self.buffers = []
         fw_fifo_flags = os.O_RDONLY | os.O_NONBLOCK if read_timeout else os.O_RDONLY
+        print("Trace 1")
 
         try:
             self.fw_ctr_fifo = os.open(ctr_fifo_path + "fw_" + shmem_name, fw_fifo_flags)
+            print("Trace 1.5")
+            print(ctr_fifo_path + "bw_" + shmem_name)
             self.bw_ctr_fifo = os.open(ctr_fifo_path + "bw_" + shmem_name, os.O_WRONLY)
+            print("Trace 2")
         except OSError as err:
             self.logger.critical("OS error: {0}".format(err))
             self.logger.critical("Failed to open control fifos")
             self.bw_ctr_fifo = None
             self.fw_ctr_fifo = None
             self.init_ok = False
-
+            print("Trace 3")
         if self.fw_ctr_fifo is not None:
             signal = self.read_fw_ctr_fifo()
+            print("Trace 4")
             if signal and signal == INIT_READY:
                 self.memories.append(shared_memory.SharedMemory(name=shmem_name + "_A"))
                 self.memories.append(shared_memory.SharedMemory(name=shmem_name + "_B"))
@@ -178,8 +184,10 @@ class inShmemIface:
                         buffer=self.memories[1].buf,
                     )
                 )
+                print("Trace 5")
             else:
                 self.init_ok = False
+                print("Trace 6")
 
     def send_ctr_buff_ready(self, active_buffer_index):
         if active_buffer_index == 0:
