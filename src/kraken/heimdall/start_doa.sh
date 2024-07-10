@@ -18,4 +18,5 @@ cd heimdall_daq_fw/Firmware
 #sudo ./daq_synthetic_start.sh
 sudo env "PATH=$PATH" ./daq_start_sm.sh
 cd ../../../heimdall
-sudo python3 kraken_heimdall.py
+PYTHON_EXECUTABLE="$(which python3)"
+sudo "$PYTHON_EXECUTABLE" kraken_heimdall.py
