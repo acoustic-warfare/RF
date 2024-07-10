@@ -3,9 +3,6 @@ import numpy as np
 from shmemIface import inShmemIface
 from iq_header import IQHeader
 
-#FIX LOGGER
-
-
 class KrakenReceiver():
     def __init__(self, center_freq, gain):
 
