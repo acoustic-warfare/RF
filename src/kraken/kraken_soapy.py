@@ -79,9 +79,9 @@ class KrakenReceiver():
                 self.recorded_samples.pop(0)
             else:
                 if self.circular:
-                    self.buffer = signals_linear(self.simulation_frequencies, self.simulation_angles ,self.num_devices, self.num_samples, self.x, antenna_distance, noise_power = self.simulation_noise)
+                    self.buffer = signals_arbitrary(self.simulation_frequencies, self.simulation_angles ,self.num_devices, self.num_samples, self.x, self.y, noise_power = self.simulation_noise)
                 else:
-                    self.buffer = signals_arbitrary(self.simulation_frequencies, self.simulation_angles ,self.num_devices, self.num_samples, self.x, self.y, antenna_distance, noise_power = self.simulation_noise)
+                    self.buffer = signals_linear(self.simulation_frequencies, self.simulation_angles ,self.num_devices, self.num_samples, self.x, noise_power = self.simulation_noise)
             self.offs = 180.0
         else:
             self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64)
@@ -361,23 +361,6 @@ class KrakenReceiver():
         angles = np.arange(-self.detection_range / 2 + self.offs, self.detection_range / 2 + self.offs)
         scanning_vectors = gen_scanning_vectors(self.num_devices, self.x, self.y, angles)
         
-        # Perform DOA estimation
-        doa = DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension)
-        return doa
-        
-        # Compute the spatial correlation matrix
-        spatial_corr_matrix = np.dot(self.buffer, self.buffer.conj().T) / self.num_samples
-        
-        # Apply forward-backward averaging
-        spatial_corr_matrix = forward_backward_avg(spatial_corr_matrix)
-        
-        # Generate scanning vectors
-        angles = np.arange(-self.detection_range / 2 + self.offs, self.detection_range / 2 + self.offs)
-        scanning_vectors = gen_scanning_vectors(self.num_devices, self.x, self.y, angles)
-        
-        # Perform DOA estimation
-        doa = DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension)
-        return doa
 
     def mem(self):
         """
@@ -509,7 +492,7 @@ def get_device_info():
 
         return device_info_list
 
-def signals_linear(frequencies, angles, num_sensors, num_snapshots, antenna_positions, antenna_distance, wavelength=1.0, noise_power=1e-2):
+def signals_linear(frequencies, angles, num_sensors, num_snapshots, antenna_positions, wavelength=1.0, noise_power=1e1):
     """
     Generates signals received by sensor array.
 
@@ -533,21 +516,21 @@ def signals_linear(frequencies, angles, num_sensors, num_snapshots, antenna_posi
         over time (shape: (num_sensors, num_snapshots)).
 
     """
-    sensor_positions = antenna_positions * antenna_distance
+
     signals = np.zeros((num_sensors, num_snapshots), dtype=complex)
     frequency_offset = frequencies[0]
 
     for f, angle in zip(frequencies, angles):
         f_cal = f - frequency_offset
         signal = np.exp(1j * 2 * np.pi * f_cal * np.arange(num_snapshots) / num_snapshots)
-        steering_vector = np.exp(1j * 2 * np.pi * sensor_positions[:, np.newaxis] * np.sin(np.radians(angle)) / wavelength)
+        steering_vector = np.exp(1j * 2 * np.pi * antenna_positions[:, np.newaxis] * np.sin(np.radians(angle)) / wavelength)
         signals += steering_vector @ signal[np.newaxis, :]
     
     noise = np.sqrt(noise_power) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
     return signals + noise
 
 
-def signals_circular(frequencies, angles, num_sensors, num_snapshots, antenna_positions_x, antenna_positions_y , antenna_distance, wavelength=1.0, noise_power=1e-2):
+def signals_circular(frequencies, angles, num_sensors, num_snapshots, x, y, wavelength=1.0, noise_power=1e1):
     """
     Generates signals received by a circular sensor array.
 
@@ -572,8 +555,6 @@ def signals_circular(frequencies, angles, num_sensors, num_snapshots, antenna_po
         2D array of complex numbers representing received signals at each sensor
         over time (shape: (num_sensors, num_snapshots)).
     """
-    sensor_positions_x = antenna_positions_x * antenna_distance
-    sensor_positions_y = antenna_positions_y * antenna_distance
     
     signals = np.zeros((num_sensors, num_snapshots), dtype=complex)
     frequency_offset = frequencies[0]
@@ -582,15 +563,15 @@ def signals_circular(frequencies, angles, num_sensors, num_snapshots, antenna_po
         f_cal = f - frequency_offset
         signal = np.exp(1j * 2 * np.pi * f_cal * np.arange(num_snapshots) / num_snapshots)
         angle_rad = np.radians(angle)
-        steering_vector = np.exp(1j * 2 * np.pi * (sensor_positions_x[:, np.newaxis] * np.cos(angle_rad) +
-                                                   sensor_positions_y[:, np.newaxis] * np.sin(angle_rad)) / wavelength)
+        steering_vector = np.exp(1j * 2 * np.pi * (x[:, np.newaxis] * np.cos(angle_rad) +
+                                                   y[:, np.newaxis] * np.sin(angle_rad)) / wavelength)
         signals += steering_vector @ signal[np.newaxis, :]
     
     noise = np.sqrt(noise_power) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
     return signals + noise
     
     
-def signals_arbitrary(frequencies, angles, num_sensors, num_snapshots, antenna_positions_x, antenna_positions_y, antenna_distance, wavelength=1.0, noise_power=1e-2):
+def signals_arbitrary(frequencies, angles, num_sensors, num_snapshots, x, y, wavelength=1.0, noise_power=1e-3):
     """
     Generates signals received by an arbitrary sensor array.
 
@@ -619,16 +600,19 @@ def signals_arbitrary(frequencies, angles, num_sensors, num_snapshots, antenna_p
     """
     
     # Combine x and y coordinates into a single array of positions
-    antenna_positions = np.vstack((antenna_positions_x*antenna_distance, antenna_positions_y*antenna_distance)).T
+    antenna_positions = np.vstack((x, y)).T
     
     # Initialize the array to store the received signals
     signals = np.zeros((num_sensors, num_snapshots), dtype=complex)
     
+    # Assume a sample rate to correctly scale the time variable
+    #sample_rate = self.sample_rate  # For example, 1 MHz
+    
     # Generate the received signal for each frequency and angle pair
     for f, angle in zip(frequencies, angles):
         # Calculate the baseband signal
-        time = np.arange(num_snapshots)
-        signal = np.exp(1j * 2 * np.pi * f * time / num_snapshots)
+        time = np.arange(num_snapshots) # / sample_rate
+        signal = np.exp(1j * 2 * np.pi * f * np.arange(num_snapshots) / num_snapshots)
         
         # Convert the angle to radians
         angle_rad = np.radians(angle)
@@ -770,16 +754,16 @@ class RealTimePlotter(QtWidgets.QMainWindow):
                 kraken.recorded_samples.pop(0)
             else:
                 if kraken.circular:
-                    kraken.buffer = signals_linear(kraken.simulation_frequencies, kraken.simulation_angles ,kraken.num_devices, kraken.num_samples, x, antenna_distance, noise_power = kraken.simulation_noise)
+                    kraken.buffer = signals_arbitrary(kraken.simulation_frequencies, kraken.simulation_angles ,kraken.num_devices, kraken.num_samples, x, y, noise_power = kraken.simulation_noise)
                 else:
-                    kraken.buffer = signals_arbitrary(kraken.simulation_frequencies, kraken.simulation_angles ,kraken.num_devices, kraken.num_samples, x, y, antenna_distance, noise_power = kraken.simulation_noise)
+                    kraken.buffer = signals_linear(kraken.simulation_frequencies, kraken.simulation_angles ,kraken.num_devices, kraken.num_samples, x, noise_power = kraken.simulation_noise)
         else:
             kraken.read_streams()
 
         kraken.apply_filter()
 
         #doa_data = kraken.capon()
-        doa_data = kraken.music2(kraken.music_dim)
+        doa_data = kraken.music(kraken.music_dim)
         doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
         
         freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.sample_rate)
@@ -801,7 +785,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         kraken.buffer = np.zeros((kraken.num_devices, kraken.num_samples), dtype=np.complex64)
 
 if __name__ == '__main__':
-    num_samples = 1048576 #1024*128
+    num_samples = 1024*128 #1048576 
     sample_rate = 1.024e6
     center_freq = 434.4e6
     bandwidth =  2e5 
@@ -817,7 +801,8 @@ if __name__ == '__main__':
         ant4 = [0.3090,   -0.9511]
         y = np.array([ant0[1], ant1[1], ant2[1], ant3[1], ant4[1]])
         x = np.array([ant0[0], ant1[0], ant2[0], ant3[0], ant4[0]])
-        antenna_distance =  0.148857 # (radius) actual antenna distance: 0.175
+        antenna_distance =  0.175
+        antenna_distance = antenna_distance / 2.0 / np.sin(36.0*np.pi/180.0) # distance = 0.175 -> radius = 0.148857 
     
     else:
         # Linear Setup
@@ -827,8 +812,8 @@ if __name__ == '__main__':
 
     kraken = KrakenReceiver(center_freq, num_samples, sample_rate, bandwidth, gain,    
                             antenna_distance, x, y, num_devices=5, circular = circular,
-                            simulation = 2, simulation_angles = [0], simulation_frequencies = [center_freq], simulation_noise = 1e2,
-                            f_type = 'FIR', detection_range=360, music_dim = 3)
+                            simulation = 1, simulation_angles = [0], simulation_frequencies = [center_freq], simulation_noise = 1e-10,
+                            f_type = 'FIR', detection_range=360, music_dim = 4)
     
     app = QtWidgets.QApplication(sys.argv)
     plotter = RealTimePlotter()
