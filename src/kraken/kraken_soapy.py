@@ -785,7 +785,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         kraken.buffer = np.zeros((kraken.num_devices, kraken.num_samples), dtype=np.complex64)
 
 if __name__ == '__main__':
-    num_samples = 1024*128 #1048576 
+    num_samples = 1024*128 # 1048576 #
     sample_rate = 1.024e6
     center_freq = 434.4e6
     bandwidth =  2e5 
@@ -812,8 +812,8 @@ if __name__ == '__main__':
 
     kraken = KrakenReceiver(center_freq, num_samples, sample_rate, bandwidth, gain,    
                             antenna_distance, x, y, num_devices=5, circular = circular,
-                            simulation = 1, simulation_angles = [0], simulation_frequencies = [center_freq], simulation_noise = 1e-10,
-                            f_type = 'FIR', detection_range=360, music_dim = 4)
+                            simulation = 1, simulation_angles = [0], simulation_frequencies = [center_freq], simulation_noise = 1e2,
+                            f_type = 'FIR', detection_range=360, music_dim = 3)
     
     app = QtWidgets.QApplication(sys.argv)
     plotter = RealTimePlotter()
