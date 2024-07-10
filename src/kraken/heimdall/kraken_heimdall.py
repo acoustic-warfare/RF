@@ -1,9 +1,13 @@
-from shmemIface import *
-from iq_header import *
+import os
+import numpy as np
+from shmemIface import inShmemIface
+from iq_header import IQHeader
+
+#FIX LOGGER
 
 
 class KrakenReceiver():
-    def __init__(self, num_antennas, center_freq, gain):
+    def __init__(self, center_freq, gain):
 
         self.daq_center_freq = center_freq  # MHz
         self.daq_rx_gain = gain  # [dB]
@@ -16,7 +20,7 @@ class KrakenReceiver():
 
         self.iq_samples = np.empty(0)
         self.iq_header = IQHeader()
-        self.num_antennas = num_antennas  # Number of receiver channels, updated after establishing connection
+        self.num_antennas = 0  # Number of receiver channels, updated after establishing connection
 
     def init_data_iface(self):
         # Open shared memory interface to capture the DAQ firmware output
@@ -43,13 +47,12 @@ class KrakenReceiver():
 
         buffer = self.in_shmem_iface.buffers[active_buff_index]
 
-
         iq_header_bytes = buffer[:1024].tobytes()
         self.iq_header.decode_header(iq_header_bytes)
 
         # Initialization from header - Set channel numbers
-        if self.M == 0:
-            self.M = self.iq_header.active_ant_chs
+        if self.num_antennas == 0:
+            self.num_antennas = self.iq_header.active_ant_chs
 
         incoming_payload_size = (
             self.iq_header.cpi_length * self.iq_header.active_ant_chs * 2 * (self.iq_header.sample_bit_depth // 8)
@@ -66,61 +69,10 @@ class KrakenReceiver():
         np.copyto(self.iq_samples, iq_samples_in)
 
         self.in_shmem_iface.send_ctr_buff_ready(active_buff_index)
-
-    def receive_iq_frame(self):
-        """
-        Called by the get_iq_online function. Receives IQ samples over the establed Ethernet connection
-        """
-        total_received_bytes = 0
-        recv_bytes_count = 0
-        iq_header_bytes = bytearray(self.iq_header.header_size)  # allocate array
-        view = memoryview(iq_header_bytes)  # Get buffer
-
-        print("Starting IQ header reception")
-
-        # while total_received_bytes < self.iq_header.header_size:
-        #     # Receive into buffer
-        #     recv_bytes_count = self.socket_inst.recv_into(view, self.iq_header.header_size - total_received_bytes)
-        #     view = view[recv_bytes_count:]  # reset memory region
-        #     total_received_bytes += recv_bytes_count
-
-        self.iq_header.decode_header(iq_header_bytes)
-        # Uncomment to check the content of the IQ header
-        # self.iq_header.dump_header()
-
-        incoming_payload_size = (
-            self.iq_header.cpi_length * self.iq_header.active_ant_chs * 2 * int(self.iq_header.sample_bit_depth / 8)
-        )
-        if incoming_payload_size > 0:
-            # Calculate total bytes to receive from the iq header data
-            total_bytes_to_receive = incoming_payload_size
-            receiver_buffer_size = 2**18
-
-            #self.logger.debug("Total bytes to receive: {:d}".format(total_bytes_to_receive))
-            print(f"Total bytes to receive: {total_bytes_to_receive}")
-
-            total_received_bytes = 0
-            recv_bytes_count = 0
-            iq_data_bytes = bytearray(total_bytes_to_receive + receiver_buffer_size)  # allocate array
-            view = memoryview(iq_data_bytes)  # Get buffer
-
-            # while total_received_bytes < total_bytes_to_receive:
-            #     # Receive into buffer
-            #     recv_bytes_count = self.socket_inst.recv_into(view, receiver_buffer_size)
-            #     view = view[recv_bytes_count:]  # reset memory region
-            #     total_received_bytes += recv_bytes_count
-
-            print("IQ Data Succesfully Received")
-
-            # Convert raw bytes to Complex float64 IQ samples
-            self.iq_samples = np.frombuffer(iq_data_bytes[0:total_bytes_to_receive], dtype=np.complex64).reshape(
-                self.iq_header.active_ant_chs, self.iq_header.cpi_length
-            )
-
-            self.iq_frame_bytes = bytearray() + iq_header_bytes + iq_data_bytes
-            return self.iq_samples
-        else:
-            return 0
         
 
-kraken = KrakenReceiver(5, 433.9, 40)
+kraken = KrakenReceiver(433.9, 40)
+while True:
+    print("Getting new IQ data")
+    kraken.get_iq_online()
+    print(kraken.iq_samples.shape)

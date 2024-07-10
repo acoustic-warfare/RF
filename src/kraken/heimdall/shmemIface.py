@@ -154,7 +154,6 @@ class inShmemIface:
         try:
             self.fw_ctr_fifo = os.open(ctr_fifo_path + "fw_" + shmem_name, fw_fifo_flags)
             print("Trace 1.5")
-            print(ctr_fifo_path + "bw_" + shmem_name)
             self.bw_ctr_fifo = os.open(ctr_fifo_path + "bw_" + shmem_name, os.O_WRONLY)
             print("Trace 2")
         except OSError as err:
