@@ -150,8 +150,11 @@ class inShmemIface:
         fw_fifo_flags = os.O_RDONLY | os.O_NONBLOCK if read_timeout else os.O_RDONLY
 
         try:
+            print("trace")
             self.fw_ctr_fifo = os.open(ctr_fifo_path + "fw_" + shmem_name, fw_fifo_flags)
+            print("trace")
             self.bw_ctr_fifo = os.open(ctr_fifo_path + "bw_" + shmem_name, os.O_WRONLY)
+            print("trace")
         except OSError as err:
             self.logger.critical("OS error: {0}".format(err))
             self.logger.critical("Failed to open control fifos")
