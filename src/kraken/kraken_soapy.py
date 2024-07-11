@@ -714,9 +714,9 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         doa_data = kraken.music(kraken.buffer, kraken.music_dim)
         doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
         
-        tri_data_0, tri_data_1 = kraken.triangulation()
-        print(f'angle_0 = {np.argmax(tri_data_0)}')
-        print(f'angle_1 = {np.argmax(tri_data_1)}')
+        # tri_data_0, tri_data_1 = kraken.triangulation()
+        # print(f'angle_0 = {np.argmax(tri_data_0)}')
+        # print(f'angle_1 = {np.argmax(tri_data_1)}')
         
         freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.sample_rate)
         
