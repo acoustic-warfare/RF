@@ -4,14 +4,18 @@ from shmemIface import inShmemIface
 from iq_header import IQHeader
 import sys
 import scipy.signal as signal
-#import pyargus.directionEstimation as pa
+import direction_estimation as de
 import pyqtgraph as pg
 from PyQt5 import QtWidgets
 from pyqtgraph.Qt import QtCore
 from scipy.fft import fft
+from config import read_kraken_config
 
 class KrakenReceiver():
-    def __init__(self, center_freq, num_samples, sample_rate, gain, antenna_distance, x,y, f_type, music_dim):
+    def __init__(self, antenna_distance, x,y, f_type, music_dim):
+
+        center_freq, num_samples, gain, sample_rate = read_kraken_config()
+        print(f"{center_freq}, {num_samples}, {gain}, {sample_rate}")
 
         self.daq_center_freq = center_freq  # MHz
         self.num_samples = num_samples
@@ -90,11 +94,10 @@ class KrakenReceiver():
             self.iq_header = IQHeader()
             self.iq_samples = np.empty(0)
             raise RuntimeError(f"Terminating.., signal: {active_buff_index}")
-            #return -1
 
-        iq_samples = self.in_shmem_iface.buffers[active_buff_index]
+        buffer = self.in_shmem_iface.buffers[active_buff_index]
 
-        iq_header_bytes = iq_samples[:1024].tobytes()
+        iq_header_bytes = buffer[:1024].tobytes()
         self.iq_header.decode_header(iq_header_bytes)
 
         # Initialization from header - Set channel numbers
@@ -106,7 +109,7 @@ class KrakenReceiver():
         )
 
         shape = (self.iq_header.active_ant_chs, self.iq_header.cpi_length)
-        iq_samples_in = iq_samples[1024 : 1024 + incoming_payload_size].view(dtype=np.complex64).reshape(shape)
+        iq_samples_in = buffer[1024 : 1024 + incoming_payload_size].view(dtype=np.complex64).reshape(shape)
 
         # Reuse the memory allocated for self.iq_samples if it has the
         # correct shape
@@ -116,6 +119,8 @@ class KrakenReceiver():
         np.copyto(self.iq_samples, iq_samples_in)
 
         self.in_shmem_iface.send_ctr_buff_ready(active_buff_index)
+
+        return self.iq_header.frame_type
 
     def apply_filter(self):
         if self.f_type == 'none': 
@@ -127,7 +132,7 @@ class KrakenReceiver():
         elif self.f_type == 'FIR':
             self.iq_samples = signal.lfilter(self.filter, 1.0, self.iq_samples)
 
-    def music(self, signal_dimension):
+    def music(self):
         """
         Performs Direction of Arrival (DOA) estimation using the MEM algorithm.
 
@@ -135,13 +140,11 @@ class KrakenReceiver():
         numpy.ndarray
             Array of estimated DOA angles in degrees.
         """
-        #smoothed_iq_samples = self.spatial_smoothing_rewrite(2, 'forward-backward')
-        #spatial_corr_matrix = np.dot(smoothed_iq_samples, smoothed_iq_samples.conj().T)
-        spatial_corr_matrix = np.dot(self.iq_samples, self.iq_samples.conj().T)
-        spatial_corr_matrix = np.divide(spatial_corr_matrix, self.num_samples)
-        spatial_corr_matrix = pa.forward_backward_avg(spatial_corr_matrix)
-        scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
-        doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=signal_dimension)
+        #thetas = tuple(np.arange(-180, 180))
+        thetas = np.arange(-180, 180)
+        spatial_corr_matrix = de.spatial_correlation_matrix(self.iq_samples, self.num_samples)
+        scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, thetas)
+        doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, self.music_dim)
 
         return doa
         
@@ -236,8 +239,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         Plots the direction of arrival (DOA) circle based on provided DOA data.
         
         Args:
-        - doa_data (numpy.ndarray): Array of DOA data values, typically normalized between 0 and 1.
-        If len(doa_data) == 180, the data is mirrored to cover 360 degrees.
+        - doa_data (numpy.ndarray): Array of DOA data values, normalized between 0 and 1.
         """
         angles = np.linspace(0, 2 * np.pi, len(doa_data))
         x_values = doa_data * np.cos(angles)
@@ -262,45 +264,38 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         and updates the corresponding PlotWidget curves (`doa_curve`, `fft_curve_0`, `fft_curve_1`, `fft_curve_2`).
         """
 
+        if kraken.get_iq_online() == 0:      
 
-        kraken.get_iq_online()
+            kraken.apply_filter()
 
-        kraken.apply_filter()
+            doa_data = kraken.music()
+            doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
+                
+            freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.daq_sample_rate)  
+            ant0 = np.abs(fft(kraken.iq_samples[0]))
+            ant1 = np.abs(fft(kraken.iq_samples[1]))
+            ant2 = np.abs(fft(kraken.iq_samples[2]))
+            ant3 = np.abs(fft(kraken.iq_samples[3]))
+            ant4 = np.abs(fft(kraken.iq_samples[4]))  
+                
+            self.plot_doa_circle(doa_data)
+            self.fft_curve_0.setData(freqs, ant0)
+            self.fft_curve_1.setData(freqs, ant1)
+            self.fft_curve_2.setData(freqs, ant2)
+            self.fft_curve_3.setData(freqs, ant3)
+            self.fft_curve_4.setData(freqs, ant4)
 
-        #doa_data = kraken.capon()
-        doa_data = kraken.music(kraken.music_dim)
-        doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
-        
-        freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.sample_rate)
-        
-        ant0 = np.abs(fft(kraken.iq_samples[0]))
-        ant1 = np.abs(fft(kraken.iq_samples[1]))
-        ant2 = np.abs(fft(kraken.iq_samples[2]))
-        ant3 = np.abs(fft(kraken.iq_samples[3]))
-        ant4 = np.abs(fft(kraken.iq_samples[4]))  
-        
-        self.plot_doa_circle(doa_data)
-        self.fft_curve_0.setData(freqs, ant0)
-        self.fft_curve_1.setData(freqs, ant1)
-        self.fft_curve_2.setData(freqs, ant2)
-        self.fft_curve_3.setData(freqs, ant3)
-        self.fft_curve_4.setData(freqs, ant4)
+            print(np.argmax(doa_data))
 
-        print(np.argmax(doa_data))
-        kraken.iq_samples = np.zeros((kraken.num_devices, kraken.num_samples), dtype=np.complex64)
+        else:
+            print("Coherent Processing is being set up...")
 
-
-num_samples = 1048576 #1024*128 # 
-sample_rate = 2.048e6
-center_freq = 434.4e6
-gain = 40
-
-    # Linear Setup
+# Linear Setup
 y = np.array([0, 0, 0, 0, 0])
 x = np.array([0, 1, 2, 3, 4])
 antenna_distance = 0.175
 
-kraken = KrakenReceiver(center_freq, num_samples, sample_rate, gain, antenna_distance, x, y, 'FIR', 3)
+kraken = KrakenReceiver(antenna_distance, x, y, 'FIR', 2)
     
 app = QtWidgets.QApplication(sys.argv)
 plotter = RealTimePlotter()
