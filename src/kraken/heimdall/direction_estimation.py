@@ -50,7 +50,8 @@ def DOA_MUSIC(R, scanning_vectors, signal_dimension, angle_resolution=1):
 
     return ADORT
 
-#TODO optimize
+#TODO optimize with numba
+#@njit(fastmath=True, cache=True)
 def forward_backward_avg(R):
     """
         Calculates the forward-backward averaging of the input correlation matrix
@@ -68,7 +69,7 @@ def forward_backward_avg(R):
         
         :return -1, -1: Input spatial correlation matrix is not quadratic
             
-    """          
+    """         
     # --> Input check
     if np.size(R, 0) != np.size(R, 1):
         print("ERROR: Correlation matrix is not quadratic")

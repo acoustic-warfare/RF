@@ -14,12 +14,10 @@ from config import read_kraken_config
 class KrakenReceiver():
     def __init__(self, antenna_distance, x,y, f_type, music_dim):
 
-        center_freq, num_samples, gain, sample_rate = read_kraken_config()
-        print(f"{center_freq}, {num_samples}, {gain}, {sample_rate}")
+        center_freq, num_samples, sample_rate = read_kraken_config()
 
         self.daq_center_freq = center_freq  # MHz
         self.num_samples = num_samples
-        self.daq_rx_gain = gain  # [dB]
         self.daq_sample_rate = sample_rate
         self.antenna_distance = antenna_distance
         self.x = x
@@ -50,7 +48,7 @@ class KrakenReceiver():
 
         elif f_type == 'FIR':
             #Design a FIR filter using the firwin function
-            numtaps = 21  # Number of filter taps (filter length)
+            numtaps = 51  # Number of filter taps (filter length)
             fc = self.daq_center_freq
             fs = 4*fc
             bandwidth = 0.3*fc
@@ -143,8 +141,10 @@ class KrakenReceiver():
         #thetas = tuple(np.arange(-180, 180))
         thetas = np.arange(-180, 180)
         spatial_corr_matrix = de.spatial_correlation_matrix(self.iq_samples, self.num_samples)
+        spatial_corr_matrix = de.forward_backward_avg(spatial_corr_matrix)
+        #num_sources = self.num_antennas - np.linalg.matrix_rank(spatial_corr_matrix)
         scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, thetas)
-        doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, self.music_dim)
+        doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, self.music_dim)#num_sources)
 
         return doa
         
@@ -263,8 +263,8 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         Performs DOA estimation using the MUSIC algorithm, computes FFTs of received signals,
         and updates the corresponding PlotWidget curves (`doa_curve`, `fft_curve_0`, `fft_curve_1`, `fft_curve_2`).
         """
-
-        if kraken.get_iq_online() == 0:      
+        frame_type = kraken.get_iq_online()
+        if frame_type == 0:      
 
             kraken.apply_filter()
 
@@ -287,15 +287,24 @@ class RealTimePlotter(QtWidgets.QMainWindow):
 
             print(np.argmax(doa_data))
 
+        elif frame_type == 1:
+            print("Received Dummy frame")
+        elif frame_type == 2:
+            print("Received Ramp frame")
+        elif frame_type == 3:
+            print("Received Calibration frame")
+        elif frame_type == 4:
+            print("Receiver Trigger Word frame")
         else:
-            print("Coherent Processing is being set up...")
+            print("Received Empty frame")
+
 
 # Linear Setup
 y = np.array([0, 0, 0, 0, 0])
 x = np.array([0, 1, 2, 3, 4])
 antenna_distance = 0.175
 
-kraken = KrakenReceiver(antenna_distance, x, y, 'FIR', 2)
+kraken = KrakenReceiver(antenna_distance, x, y, 'FIR', 1)
     
 app = QtWidgets.QApplication(sys.argv)
 plotter = RealTimePlotter()
