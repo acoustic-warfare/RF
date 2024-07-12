@@ -22,11 +22,11 @@ def read_kraken_config():
     gain = config.getint('daq', 'gain')
     num_samples = config.getint('pre_processing', 'cpi_size')
     
-    return center_freq, num_samples, gain, sample_rate
+    return center_freq, num_samples, sample_rate
 
-num_samples = 1024*256 # 1048576 # 
+num_samples = 1024*64 # 1048576 # 
 sample_rate = int(2.048e6)
-center_freq = int(433.9e6)
+center_freq = int(434.4e6)
 gain = 40
 
 kraken_config(center_freq, sample_rate, gain, num_samples)
