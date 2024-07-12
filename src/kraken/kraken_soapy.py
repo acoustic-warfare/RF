@@ -49,7 +49,7 @@ class KrakenReceiver():
     """
     def __init__(self, center_freq, num_samples, sample_rate, bandwidth, gain, 
                  antenna_distance, x, y, num_devices=5, circular = 0,
-                 simulation = 0, simulation_angles = [0], simulation_frequencies = [434.4e6], simulation_noise = 1e2,
+                 simulation = 0, simulation_angles = [0], simulation_frequencies = [434.4e6], simulation_distances = [100], simulation_noise = 1e2,
                  f_type = 'LTI', detection_range = 360, music_dim = 4):
         
         self.num_devices = num_devices
@@ -64,6 +64,7 @@ class KrakenReceiver():
         self.simulation = simulation
         self.simulation_angles = simulation_angles
         self.simulation_frequencies = simulation_frequencies
+        self.simulation_distances = simulation_distances
         self.simulation_noise = simulation_noise
         self.circular = circular
         self.x = x * antenna_distance
@@ -82,7 +83,7 @@ class KrakenReceiver():
                     self.buffer = signals_arbitrary(self.simulation_frequencies, self.simulation_angles ,self.num_devices, self.num_samples, self.x, self.y, noise_power = self.simulation_noise)
                     self.offs = 1800.0
                 else:
-                    self.buffer = signals_linear(self.simulation_frequencies, self.simulation_angles ,self.num_devices, self.num_samples, self.x, noise_power = self.simulation_noise)
+                    self.buffer = signals_linear2(self.simulation_frequencies, self.simulation_angles, self.simulation_distances, self.num_devices, self.num_samples, self.x, noise_power = self.simulation_noise)
                     self.offs = 90.0
         else:
             self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64)
@@ -304,10 +305,24 @@ class KrakenReceiver():
         return doa
     
     def triangulation(self):
-        doa_0 = self.music(self.buffer[0:3, ], 2, 3) 
-        doa_1 = self.music(self.buffer[2:5, ], 2, 3)      
+        """
+        Perform triangulation to estimate the distance to the signal source.
 
-        return doa_0, doa_1
+        Returns:
+        tuple
+            DOA estimates (doa_0, doa_1) and the calculated distance.
+        """
+        doa_0 = np.argmax(self.music(self.buffer[0:3, ], 2, 3))
+        doa_1 = np.argmax(self.music(self.buffer[2:5, ], 2, 3))
+        b = self.x[-2] - self.x[1]
+        print(f'b = {b}')
+        ang_0 = 90 - doa_0
+        ang_1 = 90 - doa_1
+        
+        # Calculate the distance using the triangulation formula
+        distance = (b * np.sin(np.radians(ang_0)) * np.sin(np.radians(ang_1))) / np.sin(np.radians(ang_0 + ang_1))
+        
+        return doa_0, doa_1, distance
         
     def mem(self):
         """
@@ -516,7 +531,68 @@ def signals_circular(frequencies, angles, num_sensors, num_snapshots, x, y, wave
     
     noise = np.sqrt(noise_power) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
     return signals + noise
+
+def signals_linear2(frequencies, angles, distances, num_sensors, num_snapshots, antenna_positions, wavelength=1.0, noise_power=1e-1):
+    """
+    Generates signals received by sensor array.
+
+    Parameters:
+    frequencies : list
+        List of frequencies (in Hz) of the transmitted signals.
+    angles : list
+        List of angles (in degrees) of arrival corresponding to each frequency.
+    distances : list
+        List of distances to the signal sources corresponding to each frequency.
+    num_sensors : int
+        Number of sensors in the array.
+    num_snapshots : int
+        Number of signal snapshots to generate.
+    antenna_positions : numpy.ndarray
+        Positions of the antennas in the array.
+    wavelength : float, optional
+        Wavelength of the transmitted signals (default is 1.0).
+    noise_power : float, optional
+        Power of additive Gaussian noise (default is 1e-1).
+
+    Returns:
+    numpy.ndarray
+        2D array of complex numbers representing received signals at each sensor
+        over time (shape: (num_sensors, num_snapshots)).
+    """
     
+    frequency_offset = frequencies[0] 
+    
+    c = 3e8  # Speed of light in m/s
+    signals = np.zeros((num_sensors, num_snapshots), dtype=complex)
+
+    for f, angle, distance in zip(frequencies, angles, distances):
+        
+        # Offset calibration
+        f = f - frequency_offset
+        
+        # Time vector
+        t = np.arange(num_snapshots)
+        
+        # Generate the baseband signal at the desired frequency
+        signal = np.exp(1j * 2 * np.pi * f * t / num_snapshots)
+        
+        # Create the steering vector
+        steering_vector = np.exp(1j * 2 * np.pi * antenna_positions[:, np.newaxis] * np.sin(np.radians(angle)) / wavelength)
+        
+        # Calculate time delay based on distance
+        time_delay = distance / c
+        phase_delay = np.exp(-1j * 2 * np.pi * f * time_delay)
+        
+        # Adjust signal for distance (attenuation and phase delay)
+        attenuation = 1 # 1 / (distance ** 2)
+        
+        # Add the signal from this source to the total signals
+        signals += attenuation * steering_vector @ (phase_delay * signal)[np.newaxis, :]
+
+    # Generate and add noise
+    noise = np.sqrt(noise_power/2) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
+    
+    return signals + noise
     
 def signals_arbitrary(frequencies, angles, num_sensors, num_snapshots, x, y, wavelength=1.0, noise_power=1e-3):
     """
@@ -704,8 +780,10 @@ class RealTimePlotter(QtWidgets.QMainWindow):
                 if kraken.circular:
                     kraken.buffer = signals_arbitrary(kraken.simulation_frequencies, kraken.simulation_angles ,kraken.num_devices, kraken.num_samples, kraken.x, kraken.y, noise_power = kraken.simulation_noise)
                 else:
-                    kraken.buffer = signals_linear(kraken.simulation_frequencies, kraken.simulation_angles ,kraken.num_devices, kraken.num_samples, kraken.x, noise_power = kraken.simulation_noise)
+                    kraken.buffer = signals_linear2(kraken.simulation_frequencies, kraken.simulation_angles, kraken.simulation_distances, kraken.num_devices, kraken.num_samples, kraken.x, noise_power = kraken.simulation_noise)
+                    #kraken.buffer = signals_linear(kraken.simulation_frequencies, kraken.simulation_angles, kraken.num_devices, kraken.num_samples, kraken.x, noise_power = kraken.simulation_noise)
         else:
+            
             kraken.read_streams()
 
         kraken.apply_filter()
@@ -714,9 +792,10 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         doa_data = kraken.music(kraken.buffer, kraken.music_dim)
         doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
         
-        # tri_data_0, tri_data_1 = kraken.triangulation()
-        # print(f'angle_0 = {np.argmax(tri_data_0)}')
-        # print(f'angle_1 = {np.argmax(tri_data_1)}')
+        tri_data_0, tri_data_1, distance = kraken.triangulation()
+        print(f'angle_0 = {tri_data_0}')
+        print(f'angle_1 = {tri_data_1}')
+        print(f'distance = {distance}')
         
         freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.sample_rate)
         
@@ -760,11 +839,11 @@ if __name__ == '__main__':
         # Linear Setup
         y = np.array([0, 0, 0, 0, 0])
         x = np.array([-2, -1, 0, 1, 2])
-        antenna_distance = 0.175
+        antenna_distance = 0.35
 
     kraken = KrakenReceiver(center_freq, num_samples, sample_rate, bandwidth, gain,    
                             antenna_distance, x, y, num_devices=5, circular = circular,
-                            simulation = 1, simulation_angles = [270], simulation_frequencies = [center_freq], simulation_noise = 1e1,
+                            simulation = 1, simulation_angles = [45], simulation_frequencies = [center_freq], simulation_distances = [1e0], simulation_noise = 1e1,
                             f_type = 'FIR', detection_range=360, music_dim = 2)
     
     
