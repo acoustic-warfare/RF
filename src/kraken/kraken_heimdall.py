@@ -1,7 +1,6 @@
 import os
 import numpy as np
-from shmemIface import inShmemIface
-from iq_header import IQHeader
+import socket
 import sys
 import scipy.signal as signal
 import direction_estimation as de
@@ -10,13 +9,16 @@ from PyQt5 import QtWidgets
 from pyqtgraph.Qt import QtCore
 from scipy.fft import fft
 from config import read_kraken_config
+from shmemIface import inShmemIface
+from iq_header import IQHeader
+from threading import Lock
 
 class KrakenReceiver():
     def __init__(self):
 
         center_freq, num_samples, sample_rate, antenna_distance, x, y, f_type = read_kraken_config()
 
-        self.daq_center_freq = center_freq  # MHz
+        self.daq_center_freq = center_freq  
         self.num_samples = num_samples
         self.daq_sample_rate = sample_rate
         self.x = x * antenna_distance
@@ -134,28 +136,12 @@ class KrakenReceiver():
         thetas = np.arange(-180, 180)
         spatial_corr_matrix = de.spatial_correlation_matrix(self.iq_samples, self.num_samples)
         spatial_corr_matrix = de.forward_backward_avg(spatial_corr_matrix)
-        sig_dim = infer_signal_dimension(spatial_corr_matrix)
-        print(sig_dim)
+        #sig_dim = de.infer_signal_dimension(spatial_corr_matrix)
+        #print(sig_dim)
         scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, thetas)
-        doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, sig_dim)
+        doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, 2)
 
         return doa
-    
-
-def infer_signal_dimension(correlation_matrix, threshold_ratio=0.1):
-    # Perform eigenvalue decomposition
-    eigenvalues, _ = np.linalg.eig(correlation_matrix)
-    
-    # Sort eigenvalues in descending order
-    eigenvalues = np.sort(eigenvalues)[::-1]
-    
-    # Determine the threshold based on the largest eigenvalue
-    threshold = threshold_ratio * eigenvalues[0]
-    
-    # Count the number of eigenvalues greater than the threshold
-    signal_dimension = np.sum(eigenvalues > threshold)
-    
-    return min(signal_dimension,4)
         
 class RealTimePlotter(QtWidgets.QMainWindow):
     """
@@ -299,7 +285,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             self.fft_curve_4.setData(freqs, ant4)
             self.doa_cartesian_curve.setData(np.linspace(0, len(doa_data), len(doa_data)), doa_data)
 
-            #print(np.argmax(doa_data))
+            print(np.argmax(doa_data))
 
         elif frame_type == 1:
             print("Received Dummy frame")

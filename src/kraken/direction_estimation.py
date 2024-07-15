@@ -157,4 +157,20 @@ def gen_scanning_vectors(M, x, y, thetas):
     
     return np.ascontiguousarray(scanning_vectors)
 
+#@njit(fastmath=True, cache=True)
+def infer_signal_dimension(correlation_matrix, threshold_ratio=0.1):
+    # Perform eigenvalue decomposition
+    eigenvalues, _ = np.linalg.eig(correlation_matrix)
+    
+    # Sort eigenvalues in descending order
+    eigenvalues = np.sort(eigenvalues)[::-1]
+    
+    # Determine the threshold based on the largest eigenvalue
+    threshold = threshold_ratio * eigenvalues[0]
+    
+    # Count the number of eigenvalues greater than the threshold
+    signal_dimension = np.sum(eigenvalues > threshold)
+    
+    return min(signal_dimension,4)
+
 
