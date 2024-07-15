@@ -50,6 +50,39 @@ def DOA_MUSIC(R, scanning_vectors, signal_dimension, angle_resolution=1):
 
     return ADORT
 
+
+def DOA_Capon(R, scanning_vectors):
+    # --- Parameters ---  
+    
+    # --> Input check
+    if np.size(R, 0) != np.size(R, 1):
+        print("ERROR: Correlation matrix is not quadratic")
+        return -1, -1
+    if np.size(R, 0) != np.size(scanning_vectors, 0):
+        print("ERROR: Correlation matrix dimension does not match with the antenna array dimension")
+        return -2, -2        
+
+     
+    ADSINR = np.zeros(np.size(scanning_vectors, 1),dtype=complex)
+
+    # --- Calculation ---  
+    try:
+        R_inv  = np.linalg.inv(R) # invert the cross correlation matrix
+    except:
+        print("ERROR: Signular matrix")
+        return -3, -3
+       
+    theta_index=0
+    for i in range(np.size(scanning_vectors, 1)):             
+        S_theta_ = scanning_vectors[:, i]
+        ADSINR[theta_index]=np.dot(np.conj(S_theta_),np.dot(R_inv,S_theta_))
+        theta_index += 1
+    
+    ADSINR = np.reciprocal(ADSINR)
+        
+    return ADSINR
+
+
 #TODO optimize with numba
 #@njit(fastmath=True, cache=True)
 def forward_backward_avg(R):
