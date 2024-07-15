@@ -19,9 +19,8 @@ class KrakenReceiver():
         self.daq_center_freq = center_freq  # MHz
         self.num_samples = num_samples
         self.daq_sample_rate = sample_rate
-        self.antenna_distance = antenna_distance
-        self.x = x
-        self.y = y
+        self.x = x * antenna_distance
+        self.y = y * antenna_distance
         self.f_type = f_type
         self.music_dim = music_dim
 
@@ -33,7 +32,7 @@ class KrakenReceiver():
 
         self.iq_samples = np.empty(0)
         self.iq_header = IQHeader()
-        self.num_antennas = 5  #TODO ändrat för simulering
+        self.num_antennas = 0  
 
         if f_type == 'butter':
             #Build digital filter
@@ -144,42 +143,9 @@ class KrakenReceiver():
         spatial_corr_matrix = de.forward_backward_avg(spatial_corr_matrix)
         #num_sources = self.num_antennas - np.linalg.matrix_rank(spatial_corr_matrix)
         scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, thetas)
-        doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, self.music_dim)#num_sources)
+        doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, self.music_dim)
 
         return doa
-    
-
-    def capon(self):
-        """
-        Performs Direction of Arrival (DOA) estimation using the MEM algorithm.
-
-        Returns:
-        numpy.ndarray
-            Array of estimated DOA angles in degrees.
-        """
-        #thetas = tuple(np.arange(-180, 180))
-        thetas = np.arange(-180, 180)
-        spatial_corr_matrix = de.spatial_correlation_matrix(self.iq_samples, self.num_samples)
-        spatial_corr_matrix = de.forward_backward_avg(spatial_corr_matrix)
-        #num_sources = self.num_antennas - np.linalg.matrix_rank(spatial_corr_matrix)
-        scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, thetas)
-        doa = de.DOA_Capon(spatial_corr_matrix, scanning_vectors)
-
-        return doa
-    
-def signals_linear(frequencies, angles, num_sensors, num_snapshots, antenna_positions, wavelength=1.0, noise_power=1e1):
-
-    signals = np.zeros((num_sensors, num_snapshots), dtype=complex)
-    frequency_offset = frequencies[0]
-
-    for f, angle in zip(frequencies, angles):
-        f_cal = f - frequency_offset
-        signal = np.exp(1j * 2 * np.pi * f_cal * np.arange(num_snapshots) / num_snapshots)
-        steering_vector = np.exp(1j * 2 * np.pi * antenna_positions[:, np.newaxis] * np.sin(np.radians(angle)) / wavelength)
-        signals += steering_vector @ signal[np.newaxis, :]
-    
-    noise = np.sqrt(noise_power) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
-    return signals + noise
         
 class RealTimePlotter(QtWidgets.QMainWindow):
     """
@@ -300,17 +266,12 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         Performs DOA estimation using the MUSIC algorithm, computes FFTs of received signals,
         and updates the corresponding PlotWidget curves (`doa_curve`, `fft_curve_0`, `fft_curve_1`, `fft_curve_2`).
         """
-        # frame_type = kraken.get_iq_online() #TODO ändrat för simulering
-        # if frame_type == 0:   
-        if True:   
-            kraken.iq_samples = signals_linear([kraken.daq_center_freq], [45], kraken.num_antennas, kraken.num_samples, kraken.x)
-
-            #frequencies, angles, num_sensors, num_snapshots, antenna_positions,
+        frame_type = kraken.get_iq_online()
+        if frame_type == 0:   
 
             kraken.apply_filter()
 
             doa_data = kraken.music()
-            #doa_data = kraken.capon()
             doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
                 
             freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.daq_sample_rate)  
@@ -330,17 +291,16 @@ class RealTimePlotter(QtWidgets.QMainWindow):
 
             print(np.argmax(doa_data))
 
-        #TODO ändrat för simulering
-        # elif frame_type == 1:
-        #     print("Received Dummy frame")
-        # elif frame_type == 2:
-        #     print("Received Ramp frame")
-        # elif frame_type == 3:
-        #     print("Received Calibration frame")
-        # elif frame_type == 4:
-        #     print("Receiver Trigger Word frame")
-        # else:
-        #     print("Received Empty frame")
+        elif frame_type == 1:
+            print("Received Dummy frame")
+        elif frame_type == 2:
+            print("Received Ramp frame")
+        elif frame_type == 3:
+            print("Received Calibration frame")
+        elif frame_type == 4:
+            print("Receiver Trigger Word frame")
+        else:
+            print("Received Empty frame")
 
 
 # Linear Setup
@@ -348,7 +308,7 @@ y = np.array([0, 0, 0, 0, 0])
 x = np.array([0, 1, 2, 3, 4])
 antenna_distance = 0.175
 
-kraken = KrakenReceiver(antenna_distance, x, y, 'FIR', 1)
+kraken = KrakenReceiver(antenna_distance, x, y, 'FIR', 2)
     
 app = QtWidgets.QApplication(sys.argv)
 plotter = RealTimePlotter()

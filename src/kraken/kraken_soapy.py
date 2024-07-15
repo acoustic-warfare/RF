@@ -790,7 +790,7 @@ if __name__ == '__main__':
     center_freq = 434.4e6
     bandwidth =  2e5 
     gain = 40
-    circular = 1
+    circular = 0
     
     if circular:
         # Circular setup
@@ -812,8 +812,8 @@ if __name__ == '__main__':
 
     kraken = KrakenReceiver(center_freq, num_samples, sample_rate, bandwidth, gain,    
                             antenna_distance, x, y, num_devices=5, circular = circular,
-                            simulation = 1, simulation_angles = [0], simulation_frequencies = [center_freq], simulation_noise = 1e2,
-                            f_type = 'FIR', detection_range=360, music_dim = 3)
+                            simulation = 1, simulation_angles = [90], simulation_frequencies = [center_freq], simulation_noise = 1e2,
+                            f_type = 'FIR', detection_range=360, music_dim = 1)
     
     app = QtWidgets.QApplication(sys.argv)
     plotter = RealTimePlotter()
