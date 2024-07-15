@@ -134,28 +134,13 @@ class KrakenReceiver():
         thetas = np.arange(-self.detection_range/2, self.detection_range/2)
         spatial_corr_matrix = de.spatial_correlation_matrix(self.iq_samples, self.num_samples)
         spatial_corr_matrix = de.forward_backward_avg(spatial_corr_matrix)
-        sig_dim = infer_signal_dimension(spatial_corr_matrix)
+        sig_dim = de.infer_signal_dimension(spatial_corr_matrix)
         print(sig_dim)
         scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, thetas)
         doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, sig_dim)
 
         return doa
     
-
-def infer_signal_dimension(correlation_matrix, threshold_ratio=0.1):
-    # Perform eigenvalue decomposition
-    eigenvalues, _ = np.linalg.eig(correlation_matrix)
-    
-    # Sort eigenvalues in descending order
-    eigenvalues = np.sort(eigenvalues)[::-1]
-    
-    # Determine the threshold based on the largest eigenvalue
-    threshold = threshold_ratio * eigenvalues[0]
-    
-    # Count the number of eigenvalues greater than the threshold
-    signal_dimension = np.sum(eigenvalues > threshold)
-    
-    return min(signal_dimension,4)
         
 class RealTimePlotter(QtWidgets.QMainWindow):
     """
