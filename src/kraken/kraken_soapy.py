@@ -843,10 +843,8 @@ if __name__ == '__main__':
 
     kraken = KrakenReceiver(center_freq, num_samples, sample_rate, bandwidth, gain,    
                             antenna_distance, x, y, num_devices=5, circular = circular,
-                            simulation = 1, simulation_angles = [45], simulation_frequencies = [center_freq], simulation_distances = [1e0], simulation_noise = 1e1,
-                            f_type = 'FIR', detection_range=360, music_dim = 2)
-    
-    
+                            simulation = 1, simulation_angles = [90], simulation_frequencies = [center_freq], simulation_noise = 1e2,
+                            f_type = 'FIR', detection_range=360, music_dim = 1)
     
     app = QtWidgets.QApplication(sys.argv)
     plotter = RealTimePlotter()
