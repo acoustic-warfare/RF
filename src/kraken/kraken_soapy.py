@@ -684,11 +684,11 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         
         self.layout = QtWidgets.QGridLayout(self.centralWidget)
         
-        self.doa_plot = pg.PlotWidget(title="Direction of Arrival")
+        self.doa_plot = pg.PlotWidget(title="Direction of Arrival") 
         self.doa_plot.setAspectLocked(True) 
         self.doa_plot.showAxis('left', False) 
-        self.doa_plot.showAxis('bottom', False)
-        self.layout.addWidget(self.doa_plot, 0, 0, 1, 1)
+        self.doa_plot.showAxis('bottom', False) 
+        self.layout.addWidget(self.doa_plot, 0, 0, 1, 1) 
         
         self.fft_plot_0 = pg.PlotWidget(title="FFT Antenna 0")
         self.fft_curve_0 = self.fft_plot_0.plot(pen='r')
@@ -719,7 +719,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         The grid consists of a circle representing the outer boundary and direction lines
         spaced every 20 degrees, along with labeled text items indicating the angle in degrees.
         """
-        angle_ticks = np.linspace(0, 2 * np.pi, 360)
+        angle_ticks = np.linspace(0, np.pi, 360)
         radius = 1
 
         #Plot the circle
@@ -728,13 +728,13 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.doa_plot.plot(x, y, pen=pg.mkPen('dark green', width=2))
 
         #Add direction lines (every 20 degrees)
-        for angle in np.linspace(0, 2 * np.pi, 18, endpoint=False):
+        for angle in np.linspace(0, np.pi, 18, endpoint=False):
             x_line = [0, radius * np.cos(angle)]
             y_line = [0, radius * np.sin(angle)]
             self.doa_plot.plot(x_line, y_line, pen=pg.mkPen('dark green', width=1))
 
         #Add labels (every 20 degrees)
-        for angle in np.linspace(0, 2 * np.pi, 18, endpoint=False):
+        for angle in np.linspace(0, np.pi, 18, endpoint=False):
             text = f'{int(np.ceil(np.degrees(angle)))}°'
             text_item = pg.TextItem(text, anchor=(0.5, 0.5))
             text_item.setPos(1.1 * np.cos(angle), 1.1 * np.sin(angle))
