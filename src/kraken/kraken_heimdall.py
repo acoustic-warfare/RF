@@ -1,6 +1,7 @@
 import os
 import numpy as np
-import socket
+from shmemIface import inShmemIface
+from iq_header import IQHeader
 import sys
 import scipy.signal as signal
 import direction_estimation as de
@@ -9,21 +10,19 @@ from PyQt5 import QtWidgets
 from pyqtgraph.Qt import QtCore
 from scipy.fft import fft
 from config import read_kraken_config
-from shmemIface import inShmemIface
-from iq_header import IQHeader
-from threading import Lock
 
 class KrakenReceiver():
     def __init__(self):
 
-        center_freq, num_samples, sample_rate, antenna_distance, x, y, f_type = read_kraken_config()
+        center_freq, num_samples, sample_rate, antenna_distance, x, y, f_type, detection_range = read_kraken_config()
 
-        self.daq_center_freq = center_freq  
+        self.daq_center_freq = center_freq  # MHz
         self.num_samples = num_samples
         self.daq_sample_rate = sample_rate
         self.x = x * antenna_distance
         self.y = y * antenna_distance
         self.f_type = f_type
+        self.detection_range = detection_range
 
         #Shared memory setup
         root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
@@ -132,16 +131,31 @@ class KrakenReceiver():
         numpy.ndarray
             Array of estimated DOA angles in degrees.
         """
-        #thetas = tuple(np.arange(-180, 180))
-        thetas = np.arange(-180, 180)
+        thetas = np.arange(-self.detection_range/2, self.detection_range/2)
         spatial_corr_matrix = de.spatial_correlation_matrix(self.iq_samples, self.num_samples)
         spatial_corr_matrix = de.forward_backward_avg(spatial_corr_matrix)
-        #sig_dim = de.infer_signal_dimension(spatial_corr_matrix)
-        #print(sig_dim)
+        sig_dim = infer_signal_dimension(spatial_corr_matrix)
+        print(sig_dim)
         scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, thetas)
-        doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, 2)
+        doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, sig_dim)
 
         return doa
+    
+
+def infer_signal_dimension(correlation_matrix, threshold_ratio=0.1):
+    # Perform eigenvalue decomposition
+    eigenvalues, _ = np.linalg.eig(correlation_matrix)
+    
+    # Sort eigenvalues in descending order
+    eigenvalues = np.sort(eigenvalues)[::-1]
+    
+    # Determine the threshold based on the largest eigenvalue
+    threshold = threshold_ratio * eigenvalues[0]
+    
+    # Count the number of eigenvalues greater than the threshold
+    signal_dimension = np.sum(eigenvalues > threshold)
+    
+    return min(signal_dimension,4)
         
 class RealTimePlotter(QtWidgets.QMainWindow):
     """
@@ -212,7 +226,9 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         The grid consists of a circle representing the outer boundary and direction lines
         spaced every 20 degrees, along with labeled text items indicating the angle in degrees.
         """
-        angle_ticks = np.linspace(0, 2 * np.pi, 360)
+        rad_limit = np.radians(kraken.detection_range)
+        
+        angle_ticks = np.linspace(0, rad_limit, 360)
         radius = 1
 
         #Plot the circle
@@ -221,13 +237,13 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.doa_plot.plot(x, y, pen=pg.mkPen('dark green', width=2))
 
         #Add direction lines (every 20 degrees)
-        for angle in np.linspace(0, 2 * np.pi, 18, endpoint=False):
+        for angle in np.linspace(0, rad_limit, 18, endpoint=False):
             x_line = [0, radius * np.cos(angle)]
             y_line = [0, radius * np.sin(angle)]
             self.doa_plot.plot(x_line, y_line, pen=pg.mkPen('dark green', width=1))
 
         #Add labels (every 20 degrees)
-        for angle in np.linspace(0, 2 * np.pi, 18, endpoint=False):
+        for angle in np.linspace(0, rad_limit, 18, endpoint=False):
             text = f'{int(np.ceil(np.degrees(angle)))}°'
             text_item = pg.TextItem(text, anchor=(0.5, 0.5))
             text_item.setPos(1.1 * np.cos(angle), 1.1 * np.sin(angle))
@@ -240,7 +256,9 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         Args:
         - doa_data (numpy.ndarray): Array of DOA data values, normalized between 0 and 1.
         """
-        angles = np.linspace(0, 2 * np.pi, len(doa_data))
+        rad_limit = np.radians(kraken.detection_range)
+        
+        angles = np.linspace(0, rad_limit, len(doa_data))
         x_values = doa_data * np.cos(angles)
         y_values = doa_data * np.sin(angles)
 
@@ -285,7 +303,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             self.fft_curve_4.setData(freqs, ant4)
             self.doa_cartesian_curve.setData(np.linspace(0, len(doa_data), len(doa_data)), doa_data)
 
-            print(np.argmax(doa_data))
+            #print(np.argmax(doa_data))
 
         elif frame_type == 1:
             print("Received Dummy frame")
