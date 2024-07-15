@@ -12,9 +12,9 @@ from scipy.fft import fft
 from config import read_kraken_config
 
 class KrakenReceiver():
-    def __init__(self, antenna_distance, x,y, f_type, music_dim):
+    def __init__(self):
 
-        center_freq, num_samples, sample_rate = read_kraken_config()
+        center_freq, num_samples, sample_rate, antenna_distance, x, y, f_type = read_kraken_config()
 
         self.daq_center_freq = center_freq  # MHz
         self.num_samples = num_samples
@@ -22,7 +22,6 @@ class KrakenReceiver():
         self.x = x * antenna_distance
         self.y = y * antenna_distance
         self.f_type = f_type
-        self.music_dim = music_dim
 
         #Shared memory setup
         root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
@@ -141,11 +140,28 @@ class KrakenReceiver():
         thetas = np.arange(-180, 180)
         spatial_corr_matrix = de.spatial_correlation_matrix(self.iq_samples, self.num_samples)
         spatial_corr_matrix = de.forward_backward_avg(spatial_corr_matrix)
-        #num_sources = self.num_antennas - np.linalg.matrix_rank(spatial_corr_matrix)
+        sig_dim = infer_signal_dimension(spatial_corr_matrix)
+        print(sig_dim)
         scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, thetas)
-        doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, self.music_dim)
+        doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, sig_dim)
 
         return doa
+    
+
+def infer_signal_dimension(correlation_matrix, threshold_ratio=0.1):
+    # Perform eigenvalue decomposition
+    eigenvalues, _ = np.linalg.eig(correlation_matrix)
+    
+    # Sort eigenvalues in descending order
+    eigenvalues = np.sort(eigenvalues)[::-1]
+    
+    # Determine the threshold based on the largest eigenvalue
+    threshold = threshold_ratio * eigenvalues[0]
+    
+    # Count the number of eigenvalues greater than the threshold
+    signal_dimension = np.sum(eigenvalues > threshold)
+    
+    return min(signal_dimension,4)
         
 class RealTimePlotter(QtWidgets.QMainWindow):
     """
@@ -289,7 +305,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             self.fft_curve_4.setData(freqs, ant4)
             self.doa_cartesian_curve.setData(np.linspace(0, len(doa_data), len(doa_data)), doa_data)
 
-            print(np.argmax(doa_data))
+            #print(np.argmax(doa_data))
 
         elif frame_type == 1:
             print("Received Dummy frame")
@@ -303,12 +319,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             print("Received Empty frame")
 
 
-# Linear Setup
-y = np.array([0, 0, 0, 0, 0])
-x = np.array([0, 1, 2, 3, 4])
-antenna_distance = 0.175
-
-kraken = KrakenReceiver(antenna_distance, x, y, 'FIR', 2)
+kraken = KrakenReceiver()
     
 app = QtWidgets.QApplication(sys.argv)
 plotter = RealTimePlotter()
