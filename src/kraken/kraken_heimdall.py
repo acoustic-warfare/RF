@@ -70,20 +70,20 @@ class KrakenReceiver():
             self.b = np.array(discrete_system[0].flatten(), dtype=np.float64)
             self.a = np.array(discrete_system[1].flatten(), dtype=np.float64)
     
-    def set_center_freq(self, center_freq):
-        context = zmq.Context()
-        socket = context.socket(zmq.REQ)
-        socket.connect("tcp://localhost:1130")
+    # def set_center_freq(self, center_freq):
+    #     context = zmq.Context()
+    #     socket = context.socket(zmq.REQ)
+    #     socket.connect("tcp://localhost:1130")
 
-        self.daq_center_freq = int(center_freq)
-        # Set center frequency
-        cmd = "FREQ"
-        freq_bytes = pack("Q", int(center_freq))
-        msg_bytes = cmd.encode() + freq_bytes + bytearray(116)
-        try:
-            _thread.start_new_thread(self.ctr_iface_communication, (msg_bytes,))
-        except:
-            raise RuntimeError("Failed sending message to HWC")
+    #     self.daq_center_freq = int(center_freq)
+    #     # Set center frequency
+    #     cmd = "FREQ"
+    #     freq_bytes = pack("Q", int(center_freq))
+    #     msg_bytes = cmd.encode() + freq_bytes + bytearray(116)
+    #     try:
+    #         _thread.start_new_thread(self.ctr_iface_communication, (msg_bytes,))
+    #     except:
+    #         raise RuntimeError("Failed sending message to HWC")
             
 
     def init_data_iface(self):
@@ -153,11 +153,12 @@ class KrakenReceiver():
         numpy.ndarray
             Array of estimated DOA angles in degrees.
         """
-        thetas = np.arange(-180, 180)
+        thetas = np.arange(-self.detection_range/2 - 90, self.detection_range/2 - 90)
         spatial_corr_matrix = de.spatial_correlation_matrix(self.iq_samples, self.num_samples)
         spatial_corr_matrix = de.forward_backward_avg(spatial_corr_matrix)
         sig_dim = de.infer_signal_dimension(spatial_corr_matrix)
         #print(sig_dim)
+        #scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, thetas)
         scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, thetas)
         doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, sig_dim)
 
@@ -306,58 +307,6 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.doa_curve = self.doa_plot.plot(x_values, y_values, pen=pg.mkPen(pg.mkColor(70,220,0), width=2), 
                                             fillLevel=0, brush=(255, 255, 0, 50))
 
-    # def create_polar_grid(self):
-    #     """
-    #     Creates a polar grid on the Direction of Arrival (DOA) plot.
-    #     The grid consists of a circle representing the outer boundary and direction lines
-    #     spaced every 20 degrees, along with labeled text items indicating the angle in degrees.
-    #     """
-    #     rad_limit = np.radians(kraken.detection_range)
-        
-    #     angle_ticks = np.linspace(0, rad_limit, 360)
-    #     radius = 1
-
-    #     #Plot the circle
-    #     x = radius * np.cos(angle_ticks)
-    #     y = radius * np.sin(angle_ticks)
-    #     self.doa_plot.plot(x, y, pen=pg.mkPen('dark green', width=2))
-
-    #     #Add direction lines (every 20 degrees)
-    #     for angle in np.linspace(0, rad_limit, 18, endpoint=False):
-    #         x_line = [0, radius * np.cos(angle)]
-    #         y_line = [0, radius * np.sin(angle)]
-    #         self.doa_plot.plot(x_line, y_line, pen=pg.mkPen('dark green', width=1))
-
-    #     #Add labels (every 20 degrees)
-    #     for angle in np.linspace(0, rad_limit, 18, endpoint=False):
-    #         text = f'{int(np.ceil(np.degrees(angle)))}°'
-    #         text_item = pg.TextItem(text, anchor=(0.5, 0.5))
-    #         text_item.setPos(1.1 * np.cos(angle), 1.1 * np.sin(angle))
-    #         self.doa_plot.addItem(text_item)
-
-    # def plot_doa_circle(self, doa_data):
-    #     """
-    #     Plots the direction of arrival (DOA) circle based on provided DOA data.
-        
-    #     Args:
-    #     - doa_data (numpy.ndarray): Array of DOA data values, normalized between 0 and 1.
-    #     """
-    #     #rad_limit = np.radians(kraken.detection_range)
-    #     rad_limit = 2 * np.pi
-        
-    #     angles = np.linspace(0, rad_limit, len(doa_data))
-    #     x_values = doa_data * np.cos(angles)
-    #     y_values = doa_data * np.sin(angles)
-
-    #     #Close the polar plot loop
-    #     x_values = np.append(x_values, [0])
-    #     y_values = np.append(y_values, [0])
-
-    #     if self.doa_curve is not None:
-    #         self.doa_plot.removeItem(self.doa_curve)
-
-    #     self.doa_curve = self.doa_plot.plot(x_values, y_values, pen=pg.mkPen(pg.mkColor(70,220,0), width=2), 
-    #                                         fillLevel=0, brush=(255, 255, 0, 50))
 
     def update_plots(self):
         """
@@ -391,7 +340,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             # self.fft_curve_4.setData(freqs, ant4)
             self.doa_cartesian_curve.setData(np.linspace(0, len(doa_data), len(doa_data)), doa_data)
 
-            print(np.argmax(doa_data))
+            print(np.argmax(doa_data) - 90)
 
         elif frame_type == 1:
             print("Received Dummy frame")
