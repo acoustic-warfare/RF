@@ -2,9 +2,12 @@ import os
 import numpy as np
 import h5py
 import sys
+import socket
 import scipy.signal as signal
 import direction_estimation as de
-import pyqtgraph as pg
+import pyqtgraph as pg  
+import zmq
+from threading import Lock
 from PyQt5 import QtWidgets
 from pyqtgraph.Qt import QtCore
 from scipy.fft import fft
@@ -66,6 +69,22 @@ class KrakenReceiver():
             discrete_system = signal.cont2discrete((num, den), dt)
             self.b = np.array(discrete_system[0].flatten(), dtype=np.float64)
             self.a = np.array(discrete_system[1].flatten(), dtype=np.float64)
+    
+    def set_center_freq(self, center_freq):
+        context = zmq.Context()
+        socket = context.socket(zmq.REQ)
+        socket.connect("tcp://localhost:1130")
+
+        self.daq_center_freq = int(center_freq)
+        # Set center frequency
+        cmd = "FREQ"
+        freq_bytes = pack("Q", int(center_freq))
+        msg_bytes = cmd.encode() + freq_bytes + bytearray(116)
+        try:
+            _thread.start_new_thread(self.ctr_iface_communication, (msg_bytes,))
+        except:
+            raise RuntimeError("Failed sending message to HWC")
+            
 
     def init_data_iface(self):
         # Open shared memory interface to capture the DAQ firmware output
@@ -138,7 +157,7 @@ class KrakenReceiver():
         spatial_corr_matrix = de.spatial_correlation_matrix(self.iq_samples, self.num_samples)
         spatial_corr_matrix = de.forward_backward_avg(spatial_corr_matrix)
         sig_dim = de.infer_signal_dimension(spatial_corr_matrix)
-        print(sig_dim)
+        #print(sig_dim)
         scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, thetas)
         doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, sig_dim)
 
@@ -316,7 +335,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             # self.fft_curve_4.setData(freqs, ant4)
             self.doa_cartesian_curve.setData(np.linspace(0, len(doa_data), len(doa_data)), doa_data)
 
-            #print(np.argmax(doa_data))
+            print(np.argmax(doa_data))
 
         elif frame_type == 1:
             print("Received Dummy frame")

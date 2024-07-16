@@ -1,9 +1,6 @@
 import configparser
 import numpy as np
 
-def write_list_to_config():
-    pass
-
 def kraken_config(center_freq, sample_rate, gain, num_samples, antenna_distance, x, y, f_type, detection_range):
     config = configparser.ConfigParser()
     config.read('heimdall_daq_fw/Firmware/daq_chain_config.ini')
@@ -53,7 +50,7 @@ antenna_distance = 0.175
 
 num_samples = 1024*64 # 1048576 # 
 sample_rate = int(2.048e6)
-center_freq = int(433e6)
+center_freq = int(433.9e6)
 gain = 40
 # Linear Setup
 y = np.array([0, 1, 0, 1, 0])
