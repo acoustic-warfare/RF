@@ -84,7 +84,7 @@ class KrakenReceiver():
                     self.offs = 1800.0
                 else:
                     self.buffer = signals_linear2(self.simulation_frequencies, self.simulation_angles, self.simulation_distances, self.num_devices, self.num_samples, self.x, noise_power = self.simulation_noise)
-                    self.offs = 90.0
+                    self.offs = -90.0
         else:
             self.buffer = np.zeros((self.num_devices, num_samples), dtype=np.complex64)
             self.offs = self.real_offs
@@ -283,7 +283,7 @@ class KrakenReceiver():
 
         return Rss
 
-    def music(self, buffer, signal_dimension, buffer_dim = 0):
+    def music(self, signal_dimension, index = [0,-1]):
         """
         Performs Direction of Arrival (DOA) estimation using the MEM algorithm.
 
@@ -291,16 +291,22 @@ class KrakenReceiver():
         numpy.ndarray
             Array of estimated DOA angles in degrees.
         """
-        if not buffer_dim:
-            buffer_dim = self.num_devices
+        
+        buffer = self.buffer[index[0]:index[1]]
+        x = self.x[index[0]:index[1]]
+        y = self.y[index[0]:index[1]]
+        buffer_dim = len(x)
+        print(f'buffer_dim = {buffer_dim}')
+        print(f' x = {x}')
         #smoothed_buffer = self.spatial_smoothing_rewrite(2, 'forward-backward')
         #spatial_corr_matrix = np.dot(smoothed_buffer, smoothed_buffer.conj().T)
         spatial_corr_matrix = np.dot(buffer, buffer.conj().T)
         spatial_corr_matrix = np.divide(spatial_corr_matrix, self.num_samples)
         spatial_corr_matrix = pa.forward_backward_avg(spatial_corr_matrix)
         # scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
-        scanning_vectors = pa.gen_scanning_vectors(buffer_dim, self.x[0:buffer_dim], self.y[0:buffer_dim], np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
+        scanning_vectors = pa.gen_scanning_vectors(buffer_dim, x, y, np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
         doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=signal_dimension)
+        #print(f'doa_max = {np.argmax(doa)}')
 
         return doa
     
@@ -312,12 +318,12 @@ class KrakenReceiver():
         tuple
             DOA estimates (doa_0, doa_1) and the calculated distance.
         """
-        doa_0 = np.argmax(self.music(self.buffer[0:3, ], 2, 3))
-        doa_1 = np.argmax(self.music(self.buffer[2:5, ], 2, 3))
-        b = self.x[-2] - self.x[1]
+        doa_0 = np.argmax(self.music(kraken.music_dim, index = [0,2]))
+        doa_1 = np.argmax(self.music(kraken.music_dim, index = [3,5]))
+        b = 3*(self.x[1] - self.x[0])
         print(f'b = {b}')
-        ang_0 = 90 - doa_0
-        ang_1 = 90 - doa_1
+        ang_0 = doa_0
+        ang_1 = doa_1
         
         # Calculate the distance using the triangulation formula
         distance = (b * np.sin(np.radians(ang_0)) * np.sin(np.radians(ang_1))) / np.sin(np.radians(ang_0 + ang_1))
@@ -567,6 +573,7 @@ def signals_linear2(frequencies, angles, distances, num_sensors, num_snapshots, 
 
     for f, angle, distance in zip(frequencies, angles, distances):
         
+        
         # Offset calibration
         f = f - frequency_offset
         
@@ -653,7 +660,6 @@ def signals_arbitrary(frequencies, angles, num_sensors, num_snapshots, x, y, wav
     
     return signals + noise
 
-
 class RealTimePlotter(QtWidgets.QMainWindow):
     """
     A PyQt-based GUI window for real-time data visualization of direction of arrival (DOA) and FFT plots.
@@ -719,7 +725,13 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         The grid consists of a circle representing the outer boundary and direction lines
         spaced every 20 degrees, along with labeled text items indicating the angle in degrees.
         """
-        angle_ticks = np.linspace(0, np.pi, 360)
+        rad_limit = np.radians(kraken.detection_range)
+        if kraken.detection_range > 180:
+            endpoint = False
+        else:
+            endpoint = True
+        
+        angle_ticks = np.linspace(0, rad_limit, kraken.detection_range)
         radius = 1
 
         #Plot the circle
@@ -728,14 +740,14 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.doa_plot.plot(x, y, pen=pg.mkPen('dark green', width=2))
 
         #Add direction lines (every 20 degrees)
-        for angle in np.linspace(0, np.pi, 18, endpoint=False):
+        for angle in np.linspace(0, rad_limit, 19, endpoint=endpoint):
             x_line = [0, radius * np.cos(angle)]
             y_line = [0, radius * np.sin(angle)]
             self.doa_plot.plot(x_line, y_line, pen=pg.mkPen('dark green', width=1))
 
         #Add labels (every 20 degrees)
-        for angle in np.linspace(0, np.pi, 18, endpoint=False):
-            text = f'{int(np.ceil(np.degrees(angle)))}°'
+        for angle in np.linspace(0, rad_limit, 19, endpoint=endpoint):
+            text = f'{int(round(np.degrees(angle-rad_limit/2), -1))}°'
             text_item = pg.TextItem(text, anchor=(0.5, 0.5))
             text_item.setPos(1.1 * np.cos(angle), 1.1 * np.sin(angle))
             self.doa_plot.addItem(text_item)
@@ -748,7 +760,10 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         - doa_data (numpy.ndarray): Array of DOA data values, typically normalized between 0 and 1.
         If len(doa_data) == 180, the data is mirrored to cover 360 degrees.
         """
-        angles = np.linspace(0, 2 * np.pi, len(doa_data))
+        rad_limit = np.radians(kraken.detection_range)
+        print(f'rad_limit = {rad_limit}')
+        
+        angles = np.linspace(0, rad_limit, len(doa_data))
         x_values = doa_data * np.cos(angles)
         y_values = doa_data * np.sin(angles)
 
@@ -789,7 +804,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         kraken.apply_filter()
 
         #doa_data = kraken.capon()
-        doa_data = kraken.music(kraken.buffer, kraken.music_dim)
+        doa_data = kraken.music(kraken.music_dim)
         doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
         
         tri_data_0, tri_data_1, distance = kraken.triangulation()
@@ -838,13 +853,14 @@ if __name__ == '__main__':
     else:
         # Linear Setup
         y = np.array([0, 0, 0, 0, 0])
-        x = np.array([-2, -1, 0, 1, 2])
-        antenna_distance = 0.35
+        # x = np.array([-2, -1, 0, 1, 2])
+        x = np.array([0, 1, 2, 3, 4])
+        antenna_distance = 0.175
 
     kraken = KrakenReceiver(center_freq, num_samples, sample_rate, bandwidth, gain,    
-                            antenna_distance, x, y, num_devices=5, circular = circular,
-                            simulation = 1, simulation_angles = [90], simulation_frequencies = [center_freq], simulation_noise = 1e2,
-                            f_type = 'FIR', detection_range=360, music_dim = 1)
+                            antenna_distance, x, y, num_devices = 5, circular = circular,
+                            simulation = 1, simulation_angles = [0], simulation_frequencies = [center_freq], simulation_noise = 1e2,
+                            f_type = 'FIR', detection_range = 180, music_dim = 1)
     
     app = QtWidgets.QApplication(sys.argv)
     plotter = RealTimePlotter()
