@@ -1,7 +1,6 @@
 import os
 import numpy as np
-from shmemIface import inShmemIface
-from iq_header import IQHeader
+import h5py
 import sys
 import scipy.signal as signal
 import direction_estimation as de
@@ -10,6 +9,9 @@ from PyQt5 import QtWidgets
 from pyqtgraph.Qt import QtCore
 from scipy.fft import fft
 from config import read_kraken_config
+from datetime import datetime
+from shmemIface import inShmemIface
+from iq_header import IQHeader
 
 class KrakenReceiver():
     def __init__(self):
@@ -33,6 +35,7 @@ class KrakenReceiver():
         self.iq_samples = np.empty(0)
         self.iq_header = IQHeader()
         self.num_antennas = 0  
+        self.file = None
 
         if f_type == 'butter':
             #Build digital filter
@@ -131,7 +134,7 @@ class KrakenReceiver():
         numpy.ndarray
             Array of estimated DOA angles in degrees.
         """
-        thetas = np.arange(-self.detection_range/2, self.detection_range/2)
+        thetas = np.arange(-180, 180)
         spatial_corr_matrix = de.spatial_correlation_matrix(self.iq_samples, self.num_samples)
         spatial_corr_matrix = de.forward_backward_avg(spatial_corr_matrix)
         sig_dim = de.infer_signal_dimension(spatial_corr_matrix)
@@ -140,8 +143,30 @@ class KrakenReceiver():
         doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, sig_dim)
 
         return doa
+
+    def record_samples(self):
+        if self.file:
+            with h5py.File(self.file, 'a') as hf:
+                # Check if the dataset exists
+                if 'iq_samples' in hf:
+                    # Get the existing dataset
+                    existing_data = hf['iq_samples']
+                    existing_shape = existing_data.shape
+
+                    # Calculate the new shape
+                    new_shape = (existing_shape[0], existing_shape[1] + self.num_samples)
+
+                    # Resize the dataset to accommodate new data
+                    existing_data.resize(new_shape)
+
+                    # Write new data to the dataset
+                    existing_data[:, existing_shape[1]:] = self.iq_samples
+        else:
+            timestamp = datetime.now()
+            self.file = 'recordings/' + timestamp.strftime("%Y-%m-%d_%H:%M:%S") + '.h5'
+            with h5py.File(self.file, 'w') as hf:
+                hf.create_dataset('iq_samples', data=self.iq_samples, maxshape=(self.iq_samples.shape[0], None))
     
-        
 class RealTimePlotter(QtWidgets.QMainWindow):
     """
     A PyQt-based GUI window for real-time data visualization of direction of arrival (DOA) and FFT plots.
@@ -182,21 +207,21 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.fft_curve_0 = self.fft_plot_0.plot(pen='r')
         self.layout.addWidget(self.fft_plot_0, 0, 1, 1, 1)
         
-        self.fft_plot_1 = pg.PlotWidget(title="FFT Antenna 1")
-        self.fft_curve_1 = self.fft_plot_1.plot(pen='g')
-        self.layout.addWidget(self.fft_plot_1, 1, 0, 1, 1)
+        # self.fft_plot_1 = pg.PlotWidget(title="FFT Antenna 1")
+        # self.fft_curve_1 = self.fft_plot_1.plot(pen='g')
+        # self.layout.addWidget(self.fft_plot_1, 1, 0, 1, 1)
         
-        self.fft_plot_2 = pg.PlotWidget(title="FFT Antenna 2")
-        self.fft_curve_2 = self.fft_plot_2.plot(pen='b')
-        self.layout.addWidget(self.fft_plot_2, 1, 1, 1, 1)
+        # self.fft_plot_2 = pg.PlotWidget(title="FFT Antenna 2")
+        # self.fft_curve_2 = self.fft_plot_2.plot(pen='b')
+        # self.layout.addWidget(self.fft_plot_2, 1, 1, 1, 1)
 
-        self.fft_plot_3 = pg.PlotWidget(title="FFT Antenna 3")
-        self.fft_curve_3 = self.fft_plot_3.plot(pen='y')  # Changed to yellow
-        self.layout.addWidget(self.fft_plot_3, 2, 0, 1, 1)
+        # self.fft_plot_3 = pg.PlotWidget(title="FFT Antenna 3")
+        # self.fft_curve_3 = self.fft_plot_3.plot(pen='y')  # Changed to yellow
+        # self.layout.addWidget(self.fft_plot_3, 2, 0, 1, 1)
 
-        self.fft_plot_4 = pg.PlotWidget(title="FFT Antenna 4")
-        self.fft_curve_4 = self.fft_plot_4.plot(pen='c')  # Changed to cyan
-        self.layout.addWidget(self.fft_plot_4, 2, 1, 1, 1)
+        # self.fft_plot_4 = pg.PlotWidget(title="FFT Antenna 4")
+        # self.fft_curve_4 = self.fft_plot_4.plot(pen='c')  # Changed to cyan
+        # self.layout.addWidget(self.fft_plot_4, 2, 1, 1, 1)
 
         self.doa_cartesian_plot = pg.PlotWidget(title="Direction of Arrival (Cartesian)")
         self.doa_cartesian_curve = self.doa_cartesian_plot.plot(pen=pg.mkPen(pg.mkColor(70,220,0), width=2))
@@ -211,7 +236,8 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         The grid consists of a circle representing the outer boundary and direction lines
         spaced every 20 degrees, along with labeled text items indicating the angle in degrees.
         """
-        rad_limit = np.radians(kraken.detection_range)
+        #rad_limit = np.radians(kraken.detection_range)
+        rad_limit = 2 * np.pi
         
         angle_ticks = np.linspace(0, rad_limit, 360)
         radius = 1
@@ -241,7 +267,8 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         Args:
         - doa_data (numpy.ndarray): Array of DOA data values, normalized between 0 and 1.
         """
-        rad_limit = np.radians(kraken.detection_range)
+        #rad_limit = np.radians(kraken.detection_range)
+        rad_limit = 2 * np.pi
         
         angles = np.linspace(0, rad_limit, len(doa_data))
         x_values = doa_data * np.cos(angles)
@@ -269,23 +296,24 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         if frame_type == 0:   
 
             kraken.apply_filter()
+            #kraken.record_samples()
 
             doa_data = kraken.music()
             doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
                 
             freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.daq_sample_rate)  
             ant0 = np.abs(fft(kraken.iq_samples[0]))
-            ant1 = np.abs(fft(kraken.iq_samples[1]))
-            ant2 = np.abs(fft(kraken.iq_samples[2]))
-            ant3 = np.abs(fft(kraken.iq_samples[3]))
-            ant4 = np.abs(fft(kraken.iq_samples[4]))  
+            # ant1 = np.abs(fft(kraken.iq_samples[1]))
+            # ant2 = np.abs(fft(kraken.iq_samples[2]))
+            # ant3 = np.abs(fft(kraken.iq_samples[3]))
+            # ant4 = np.abs(fft(kraken.iq_samples[4]))  
                 
             self.plot_doa_circle(doa_data)
             self.fft_curve_0.setData(freqs, ant0)
-            self.fft_curve_1.setData(freqs, ant1)
-            self.fft_curve_2.setData(freqs, ant2)
-            self.fft_curve_3.setData(freqs, ant3)
-            self.fft_curve_4.setData(freqs, ant4)
+            # self.fft_curve_1.setData(freqs, ant1)
+            # self.fft_curve_2.setData(freqs, ant2)
+            # self.fft_curve_3.setData(freqs, ant3)
+            # self.fft_curve_4.setData(freqs, ant4)
             self.doa_cartesian_curve.setData(np.linspace(0, len(doa_data), len(doa_data)), doa_data)
 
             #print(np.argmax(doa_data))

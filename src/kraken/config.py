@@ -53,7 +53,7 @@ antenna_distance = 0.175
 
 num_samples = 1024*64 # 1048576 # 
 sample_rate = int(2.048e6)
-center_freq = int(433.9e6)
+center_freq = int(433e6)
 gain = 40
 # Linear Setup
 y = np.array([0, 1, 0, 1, 0])
