@@ -7,7 +7,9 @@ import scipy.signal as signal
 import direction_estimation as de
 import pyqtgraph as pg  
 import zmq
+import _thread
 from threading import Lock
+from struct import pack
 from PyQt5 import QtWidgets
 from pyqtgraph.Qt import QtCore
 from scipy.fft import fft
@@ -39,6 +41,13 @@ class KrakenReceiver():
         self.iq_header = IQHeader()
         self.num_antennas = 0  
         self.file = None
+        self.n = 0
+
+        self.ctr_iface_socket = socket.socket()
+        self.ctr_iface_port = 5001
+        # Used to synchronize the operation of the ctr_iface thread
+        self.ctr_iface_thread_lock = Lock()
+        self.ctr_iface_init()
 
         if f_type == 'butter':
             #Build digital filter
@@ -70,20 +79,56 @@ class KrakenReceiver():
             self.b = np.array(discrete_system[0].flatten(), dtype=np.float64)
             self.a = np.array(discrete_system[1].flatten(), dtype=np.float64)
     
-    # def set_center_freq(self, center_freq):
-    #     context = zmq.Context()
-    #     socket = context.socket(zmq.REQ)
-    #     socket.connect("tcp://localhost:1130")
+    def ctr_iface_init(self):
+        """
+        Initialize connection with the DAQ FW through the control interface
+        """
+        # Assembling message
+        cmd = "INIT"
+        msg_bytes = cmd.encode() + bytearray(124)
+        try:
+            _thread.start_new_thread(self.ctr_iface_communication, (msg_bytes,))
+        except:
+            RuntimeError()
+                
+    def set_center_freq(self, center_freq):
 
-    #     self.daq_center_freq = int(center_freq)
-    #     # Set center frequency
-    #     cmd = "FREQ"
-    #     freq_bytes = pack("Q", int(center_freq))
-    #     msg_bytes = cmd.encode() + freq_bytes + bytearray(116)
-    #     try:
-    #         _thread.start_new_thread(self.ctr_iface_communication, (msg_bytes,))
-    #     except:
-    #         raise RuntimeError("Failed sending message to HWC")
+        self.daq_center_freq = int(center_freq)
+        #Set center frequency
+        cmd = "FREQ"
+        freq_bytes = pack("Q", int(center_freq))
+        msg_bytes = cmd.encode() + freq_bytes + bytearray(116)
+        try:
+            _thread.start_new_thread(self.ctr_iface_communication, (msg_bytes,))
+        except:
+            RuntimeError("Failed sending message to HWC")
+
+    def ctr_iface_communication(self, msg_bytes):
+        """
+        Handles communication on the control interface with the DAQ FW
+
+        Parameters:
+        -----------
+
+            :param: msg: Message bytes, that will be sent ont the control interface
+            :type:  msg: Byte array
+        """
+        self.ctr_iface_thread_lock.acquire()
+        print("Sending control message")
+        self.ctr_iface_socket.send(msg_bytes)
+
+        # Waiting for the command to take effect
+        reply_msg_bytes = self.ctr_iface_socket.recv(128)
+
+        print("Control interface communication finished")
+        self.ctr_iface_thread_lock.release()
+
+        status = reply_msg_bytes[0:4].decode()
+        if status == "FNSD":
+            print("Reconfiguration succesfully finished")
+            
+        else:
+            raise RuntimeError("Failed to set the requested parameter, reply: {0}".format(status))
             
 
     def init_data_iface(self):
@@ -227,21 +272,21 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.fft_curve_0 = self.fft_plot_0.plot(pen='r')
         self.layout.addWidget(self.fft_plot_0, 0, 1, 1, 1)
         
-        # self.fft_plot_1 = pg.PlotWidget(title="FFT Antenna 1")
-        # self.fft_curve_1 = self.fft_plot_1.plot(pen='g')
-        # self.layout.addWidget(self.fft_plot_1, 1, 0, 1, 1)
+        self.fft_plot_1 = pg.PlotWidget(title="FFT Antenna 1")
+        self.fft_curve_1 = self.fft_plot_1.plot(pen='g')
+        self.layout.addWidget(self.fft_plot_1, 1, 0, 1, 1)
         
-        # self.fft_plot_2 = pg.PlotWidget(title="FFT Antenna 2")
-        # self.fft_curve_2 = self.fft_plot_2.plot(pen='b')
-        # self.layout.addWidget(self.fft_plot_2, 1, 1, 1, 1)
+        self.fft_plot_2 = pg.PlotWidget(title="FFT Antenna 2")
+        self.fft_curve_2 = self.fft_plot_2.plot(pen='b')
+        self.layout.addWidget(self.fft_plot_2, 1, 1, 1, 1)
 
-        # self.fft_plot_3 = pg.PlotWidget(title="FFT Antenna 3")
-        # self.fft_curve_3 = self.fft_plot_3.plot(pen='y')  # Changed to yellow
-        # self.layout.addWidget(self.fft_plot_3, 2, 0, 1, 1)
+        self.fft_plot_3 = pg.PlotWidget(title="FFT Antenna 3")
+        self.fft_curve_3 = self.fft_plot_3.plot(pen='y')  # Changed to yellow
+        self.layout.addWidget(self.fft_plot_3, 2, 0, 1, 1)
 
-        # self.fft_plot_4 = pg.PlotWidget(title="FFT Antenna 4")
-        # self.fft_curve_4 = self.fft_plot_4.plot(pen='c')  # Changed to cyan
-        # self.layout.addWidget(self.fft_plot_4, 2, 1, 1, 1)
+        self.fft_plot_4 = pg.PlotWidget(title="FFT Antenna 4")
+        self.fft_curve_4 = self.fft_plot_4.plot(pen='c')  # Changed to cyan
+        self.layout.addWidget(self.fft_plot_4, 2, 1, 1, 1)
 
         self.doa_cartesian_plot = pg.PlotWidget(title="Direction of Arrival (Cartesian)")
         self.doa_cartesian_curve = self.doa_cartesian_plot.plot(pen=pg.mkPen(pg.mkColor(70,220,0), width=2))
@@ -318,6 +363,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         """
         frame_type = kraken.get_iq_online()
         if frame_type == 0:   
+            kraken.n += 1
 
             kraken.apply_filter()
             #kraken.record_samples()
@@ -327,20 +373,23 @@ class RealTimePlotter(QtWidgets.QMainWindow):
                 
             freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.daq_sample_rate)  
             ant0 = np.abs(fft(kraken.iq_samples[0]))
-            # ant1 = np.abs(fft(kraken.iq_samples[1]))
-            # ant2 = np.abs(fft(kraken.iq_samples[2]))
-            # ant3 = np.abs(fft(kraken.iq_samples[3]))
-            # ant4 = np.abs(fft(kraken.iq_samples[4]))  
+            ant1 = np.abs(fft(kraken.iq_samples[1]))
+            ant2 = np.abs(fft(kraken.iq_samples[2]))
+            ant3 = np.abs(fft(kraken.iq_samples[3]))
+            ant4 = np.abs(fft(kraken.iq_samples[4]))  
                 
             self.plot_doa_circle(doa_data)
             self.fft_curve_0.setData(freqs, ant0)
-            # self.fft_curve_1.setData(freqs, ant1)
-            # self.fft_curve_2.setData(freqs, ant2)
-            # self.fft_curve_3.setData(freqs, ant3)
-            # self.fft_curve_4.setData(freqs, ant4)
+            self.fft_curve_1.setData(freqs, ant1)
+            self.fft_curve_2.setData(freqs, ant2)
+            self.fft_curve_3.setData(freqs, ant3)
+            self.fft_curve_4.setData(freqs, ant4)
             self.doa_cartesian_curve.setData(np.linspace(0, len(doa_data), len(doa_data)), doa_data)
 
-            print(np.argmax(doa_data) - 90)
+            print(np.argmax(doa_data))
+
+            if kraken.n == 50:
+                kraken.set_center_freq(102.7e6)
 
         elif frame_type == 1:
             print("Received Dummy frame")

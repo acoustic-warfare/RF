@@ -51,4 +51,4 @@ x = np.array([0, 1, 2, 3, 4])
 antenna_distance = 0.175
 detection_range = 180
 
-kraken_config(center_freq, sample_rate, gain, num_samples, antenna_distance, x, y, 'FIR', detection_range)
+kraken_config(center_freq, sample_rate, gain, num_samples, antenna_distance, x, y, 'none', detection_range)
