@@ -4,7 +4,7 @@ import numpy as np
 def write_list_to_config():
     pass
 
-def kraken_config(center_freq, sample_rate, gain, num_samples, antenna_distance, x, y, f_type):
+def kraken_config(center_freq, sample_rate, gain, num_samples, antenna_distance, x, y, f_type, detection_range):
     config = configparser.ConfigParser()
     config.read('heimdall_daq_fw/Firmware/daq_chain_config.ini')
 
@@ -17,6 +17,7 @@ def kraken_config(center_freq, sample_rate, gain, num_samples, antenna_distance,
     config.set('variables', 'f_type', f_type)
     config.set('variables', 'x', ','.join(map(str, x)))
     config.set('variables', 'y', ','.join(map(str, y)))
+    config.set('variables', 'detection_range', str(detection_range))
 
     with open('heimdall_daq_fw/Firmware/daq_chain_config.ini', 'w') as configfile:
         config.write(configfile)
@@ -29,6 +30,7 @@ def read_kraken_config():
     sample_rate = config.getint('daq', 'sample_rate')
     num_samples = config.getint('pre_processing', 'cpi_size')
     antenna_distance = config.getfloat('variables','antenna_distance')
+    detection_range = config.getint('variables', 'detection_range')
 
     x_str = config.get('variables', 'x')
     x = np.fromstring(x_str, sep=',')
@@ -37,7 +39,7 @@ def read_kraken_config():
     
     f_type = config.get('variables', 'f_type')
     
-    return center_freq, num_samples, sample_rate, antenna_distance, x, y, f_type
+    return center_freq, num_samples, sample_rate, antenna_distance, x, y, f_type, detection_range
 
 antenna_distance = 0.175
 # ant0 = [1,    0]
@@ -51,11 +53,12 @@ antenna_distance = 0.175
 
 num_samples = 1024*64 # 1048576 # 
 sample_rate = int(2.048e6)
-center_freq = int(433.9e6)
+center_freq = int(433e6)
 gain = 40
 # Linear Setup
 y = np.array([0, 1, 0, 1, 0])
 x = np.array([0, 1, 2, 3, 4])
+detection_range = 360
 
 
-kraken_config(center_freq, sample_rate, gain, num_samples, antenna_distance, x, y, 'FIR')
+kraken_config(center_freq, sample_rate, gain, num_samples, antenna_distance, x, y, 'FIR', detection_range)
