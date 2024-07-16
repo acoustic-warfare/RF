@@ -43,7 +43,7 @@ def read_kraken_config():
 
 num_samples = 1024*64 # 1048576 # 
 sample_rate = int(2.048e6)
-center_freq = int(434.4e6)
+center_freq = int(102.7e6)
 gain = 40
 # Linear Setup
 y = np.array([0, 0, 0, 0, 0])

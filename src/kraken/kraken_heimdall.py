@@ -6,7 +6,6 @@ import socket
 import scipy.signal as signal
 import direction_estimation as de
 import pyqtgraph as pg  
-import zmq
 import _thread
 from threading import Lock
 from struct import pack
@@ -43,10 +42,11 @@ class KrakenReceiver():
         self.file = None
         self.n = 0
 
+        #Control interface setup
         self.ctr_iface_socket = socket.socket()
         self.ctr_iface_port = 5001
-        # Used to synchronize the operation of the ctr_iface thread
         self.ctr_iface_thread_lock = Lock()
+        self.ctr_iface_socket.connect(('127.0.0.1', self.ctr_iface_port))
         self.ctr_iface_init()
 
         if f_type == 'butter':
@@ -99,10 +99,37 @@ class KrakenReceiver():
         freq_bytes = pack("Q", int(center_freq))
         msg_bytes = cmd.encode() + freq_bytes + bytearray(116)
         try:
+            print("sending message")
             _thread.start_new_thread(self.ctr_iface_communication, (msg_bytes,))
+            print("message_sent")
         except:
             RuntimeError("Failed sending message to HWC")
 
+
+    def set_if_gain(self, gain):
+        """
+        Configures the IF gain of the receiver through the control interface
+
+        Paramters:
+        ----------
+            :param: gain: IF gain value [dB]
+            :type:  gain: int
+        """
+
+        # Check connection
+        self.daq_rx_gain = gain
+            
+
+        # Set center frequency
+        cmd = "GAIN"
+        gain_list = [int(gain * 10)] * self.num_antennas
+        gain_bytes = pack("I" * self.num_antennas, *gain_list)
+        msg_bytes = cmd.encode() + gain_bytes + bytearray(128 - (self.num_antennas + 1) * 4)
+        try:
+            _thread.start_new_thread(self.ctr_iface_communication, (msg_bytes,))
+        except:
+            RuntimeError("Failed sending message to HWC")
+            
     def ctr_iface_communication(self, msg_bytes):
         """
         Handles communication on the control interface with the DAQ FW
@@ -386,10 +413,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             self.fft_curve_4.setData(freqs, ant4)
             self.doa_cartesian_curve.setData(np.linspace(0, len(doa_data), len(doa_data)), doa_data)
 
-            print(np.argmax(doa_data))
-
-            if kraken.n == 50:
-                kraken.set_center_freq(102.7e6)
+            print(np.argmax(doa_data) - 90)
 
         elif frame_type == 1:
             print("Received Dummy frame")
