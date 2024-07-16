@@ -236,10 +236,13 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         The grid consists of a circle representing the outer boundary and direction lines
         spaced every 20 degrees, along with labeled text items indicating the angle in degrees.
         """
-        #rad_limit = np.radians(kraken.detection_range)
-        rad_limit = 2 * np.pi
+        rad_limit = np.radians(kraken.detection_range)
+        if kraken.detection_range > 180:
+            endpoint = False
+        else:
+            endpoint = True
         
-        angle_ticks = np.linspace(0, rad_limit, 360)
+        angle_ticks = np.linspace(0, rad_limit, kraken.detection_range)
         radius = 1
 
         #Plot the circle
@@ -248,14 +251,14 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.doa_plot.plot(x, y, pen=pg.mkPen('dark green', width=2))
 
         #Add direction lines (every 20 degrees)
-        for angle in np.linspace(0, rad_limit, 18, endpoint=False):
+        for angle in np.linspace(0, rad_limit, 19, endpoint=endpoint):
             x_line = [0, radius * np.cos(angle)]
             y_line = [0, radius * np.sin(angle)]
             self.doa_plot.plot(x_line, y_line, pen=pg.mkPen('dark green', width=1))
 
         #Add labels (every 20 degrees)
-        for angle in np.linspace(0, rad_limit, 18, endpoint=False):
-            text = f'{int(np.ceil(np.degrees(angle)))}°'
+        for angle in np.linspace(0, rad_limit, 19, endpoint=endpoint):
+            text = f'{int(round(np.degrees(angle-rad_limit/2), -1))}°'
             text_item = pg.TextItem(text, anchor=(0.5, 0.5))
             text_item.setPos(1.1 * np.cos(angle), 1.1 * np.sin(angle))
             self.doa_plot.addItem(text_item)
@@ -265,10 +268,10 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         Plots the direction of arrival (DOA) circle based on provided DOA data.
         
         Args:
-        - doa_data (numpy.ndarray): Array of DOA data values, normalized between 0 and 1.
+        - doa_data (numpy.ndarray): Array of DOA data values, typically normalized between 0 and 1.
+        If len(doa_data) == 180, the data is mirrored to cover 360 degrees.
         """
-        #rad_limit = np.radians(kraken.detection_range)
-        rad_limit = 2 * np.pi
+        rad_limit = np.radians(kraken.detection_range)
         
         angles = np.linspace(0, rad_limit, len(doa_data))
         x_values = doa_data * np.cos(angles)
@@ -283,6 +286,59 @@ class RealTimePlotter(QtWidgets.QMainWindow):
 
         self.doa_curve = self.doa_plot.plot(x_values, y_values, pen=pg.mkPen(pg.mkColor(70,220,0), width=2), 
                                             fillLevel=0, brush=(255, 255, 0, 50))
+
+    # def create_polar_grid(self):
+    #     """
+    #     Creates a polar grid on the Direction of Arrival (DOA) plot.
+    #     The grid consists of a circle representing the outer boundary and direction lines
+    #     spaced every 20 degrees, along with labeled text items indicating the angle in degrees.
+    #     """
+    #     rad_limit = np.radians(kraken.detection_range)
+        
+    #     angle_ticks = np.linspace(0, rad_limit, 360)
+    #     radius = 1
+
+    #     #Plot the circle
+    #     x = radius * np.cos(angle_ticks)
+    #     y = radius * np.sin(angle_ticks)
+    #     self.doa_plot.plot(x, y, pen=pg.mkPen('dark green', width=2))
+
+    #     #Add direction lines (every 20 degrees)
+    #     for angle in np.linspace(0, rad_limit, 18, endpoint=False):
+    #         x_line = [0, radius * np.cos(angle)]
+    #         y_line = [0, radius * np.sin(angle)]
+    #         self.doa_plot.plot(x_line, y_line, pen=pg.mkPen('dark green', width=1))
+
+    #     #Add labels (every 20 degrees)
+    #     for angle in np.linspace(0, rad_limit, 18, endpoint=False):
+    #         text = f'{int(np.ceil(np.degrees(angle)))}°'
+    #         text_item = pg.TextItem(text, anchor=(0.5, 0.5))
+    #         text_item.setPos(1.1 * np.cos(angle), 1.1 * np.sin(angle))
+    #         self.doa_plot.addItem(text_item)
+
+    # def plot_doa_circle(self, doa_data):
+    #     """
+    #     Plots the direction of arrival (DOA) circle based on provided DOA data.
+        
+    #     Args:
+    #     - doa_data (numpy.ndarray): Array of DOA data values, normalized between 0 and 1.
+    #     """
+    #     #rad_limit = np.radians(kraken.detection_range)
+    #     rad_limit = 2 * np.pi
+        
+    #     angles = np.linspace(0, rad_limit, len(doa_data))
+    #     x_values = doa_data * np.cos(angles)
+    #     y_values = doa_data * np.sin(angles)
+
+    #     #Close the polar plot loop
+    #     x_values = np.append(x_values, [0])
+    #     y_values = np.append(y_values, [0])
+
+    #     if self.doa_curve is not None:
+    #         self.doa_plot.removeItem(self.doa_curve)
+
+    #     self.doa_curve = self.doa_plot.plot(x_values, y_values, pen=pg.mkPen(pg.mkColor(70,220,0), width=2), 
+    #                                         fillLevel=0, brush=(255, 255, 0, 50))
 
     def update_plots(self):
         """
