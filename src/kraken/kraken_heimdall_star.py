@@ -12,7 +12,7 @@ from struct import pack
 from PyQt5 import QtWidgets
 from pyqtgraph.Qt import QtCore
 from scipy.fft import fft
-from config import read_kraken_config
+from config_star import read_kraken_config
 from datetime import datetime
 from shmemIface import inShmemIface
 from iq_header import IQHeader
