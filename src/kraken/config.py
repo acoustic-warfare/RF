@@ -1,10 +1,30 @@
 import configparser
 import numpy as np
 
-def write_list_to_config():
-    pass
-
 def kraken_config(center_freq, num_samples, sample_rate, antenna_distance, x, y, f_type, detection_range):
+    """
+    Configures and writes the DAQ (Data Acquisition) chain settings to an INI file.
+
+    Parameters:
+    -----------
+    center_freq : float
+        Center frequency for data acquisition.
+    num_samples : int
+        Number of samples to be acquired.
+    sample_rate : float
+        Sampling rate for data acquisition.
+    antenna_distance : float
+        Distance between adjacent antennas in the array.
+    x : list of float
+        List of x-coordinates for the antenna array elements.
+    y : list of float
+        List of y-coordinates for the antenna array elements.
+    f_type : str
+        Type of the function used in processing (e.g., 'FFT', 'MUSIC').
+    detection_range : int
+        Range of angles to scan for detection, in degrees.
+
+    """
     config = configparser.ConfigParser()
     config.read('heimdall_daq_fw/Firmware/daq_chain_config.ini')
 
@@ -23,6 +43,28 @@ def kraken_config(center_freq, num_samples, sample_rate, antenna_distance, x, y,
         config.write(configfile)
 
 def read_kraken_config():
+    """
+    Reads the DAQ (Data Acquisition) chain settings from an INI file.
+
+    Returns:
+    --------
+    center_freq : int
+        Center frequency for data acquisition.
+    num_samples : int
+        Number of samples to be acquired.
+    sample_rate : int
+        Sampling rate for data acquisition.
+    antenna_distance : float
+        Distance between adjacent antennas in the array.
+    x : ndarray
+        Array of x-coordinates for the antenna array elements.
+    y : ndarray
+        Array of y-coordinates for the antenna array elements.
+    f_type : str
+        Type of the function used in processing (e.g., 'FFT', 'MUSIC').
+    detection_range : int
+        Range of angles to scan for detection, in degrees.
+    """
     config = configparser.ConfigParser()
     config.read('heimdall_daq_fw/Firmware/daq_chain_config.ini')
 
@@ -37,7 +79,7 @@ def read_kraken_config():
     y = np.fromstring(y_str, sep=',')
     
     f_type = config.get('variables', 'f_type')
-    #detection_range = config.get('variables', 'detection_range')
+    detection_range = config.getint('variables', 'detection_range')
     
     return center_freq, num_samples, sample_rate, antenna_distance, x, y, f_type, detection_range
 
