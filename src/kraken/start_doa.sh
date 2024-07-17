@@ -19,7 +19,6 @@ done
 ./stop_doa.sh
 
 cd heimdall_daq_fw/Firmware
-#sudo ./daq_synthetic_start.sh
 sudo env "PATH=$PATH" ./daq_start_sm.sh
 cd ../../../kraken
 

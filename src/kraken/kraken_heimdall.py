@@ -29,6 +29,8 @@ class KrakenReceiver():
         self.y = y * antenna_distance
         self.f_type = f_type
         self.detection_range = detection_range
+        self.thetas = np.arange(-self.detection_range/2 - 90, self.detection_range/2 - 90)
+        self.scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, self.thetas)
 
         #Shared memory setup
         root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
@@ -40,7 +42,6 @@ class KrakenReceiver():
         self.iq_header = IQHeader()
         self.num_antennas = 0  
         self.file = None
-        self.n = 0
 
         #Control interface setup
         self.ctr_iface_socket = socket.socket()
@@ -225,14 +226,10 @@ class KrakenReceiver():
         numpy.ndarray
             Array of estimated DOA angles in degrees.
         """
-        thetas = np.arange(-self.detection_range/2 - 90, self.detection_range/2 - 90)
         spatial_corr_matrix = de.spatial_correlation_matrix(self.iq_samples, self.num_samples)
         spatial_corr_matrix = de.forward_backward_avg(spatial_corr_matrix)
         sig_dim = de.infer_signal_dimension(spatial_corr_matrix)
-        #print(sig_dim)
-        #scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, thetas)
-        scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, thetas)
-        doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, sig_dim)
+        doa = de.DOA_MUSIC(spatial_corr_matrix, self.scanning_vectors, sig_dim)
 
         return doa
 
@@ -390,7 +387,6 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         """
         frame_type = kraken.get_iq_online()
         if frame_type == 0:   
-            kraken.n += 1
 
             kraken.apply_filter()
             #kraken.record_samples()
@@ -413,7 +409,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             self.fft_curve_4.setData(freqs, ant4)
             self.doa_cartesian_curve.setData(np.linspace(0, len(doa_data), len(doa_data)), doa_data)
 
-            print(np.argmax(doa_data) - 90)
+            print(np.argmax(doa_data) - 90) 
 
         elif frame_type == 1:
             print("Received Dummy frame")

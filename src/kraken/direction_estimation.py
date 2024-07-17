@@ -8,7 +8,6 @@ def spatial_correlation_matrix(samples, num_samples):
     samples = np.ascontiguousarray(samples)
     spatial_corr_matrix = np.dot(samples, samples.conj().T)
     spatial_corr_matrix = np.divide(spatial_corr_matrix, num_samples)
-    #spatial_corr_matrix = forward_backward_avg(spatial_corr_matrix)
     return spatial_corr_matrix
 
 @njit(fastmath=True, cache=True)
@@ -50,39 +49,6 @@ def DOA_MUSIC(R, scanning_vectors, signal_dimension, angle_resolution=1):
 
     return ADORT
 
-
-def DOA_Capon(R, scanning_vectors):
-    # --- Parameters ---  
-    
-    # --> Input check
-    if np.size(R, 0) != np.size(R, 1):
-        print("ERROR: Correlation matrix is not quadratic")
-        return -1, -1
-    if np.size(R, 0) != np.size(scanning_vectors, 0):
-        print("ERROR: Correlation matrix dimension does not match with the antenna array dimension")
-        return -2, -2        
-
-     
-    ADSINR = np.zeros(np.size(scanning_vectors, 1),dtype=complex)
-
-    # --- Calculation ---  
-    try:
-        R_inv  = np.linalg.inv(R) # invert the cross correlation matrix
-    except:
-        print("ERROR: Signular matrix")
-        return -3, -3
-       
-    theta_index=0
-    for i in range(np.size(scanning_vectors, 1)):             
-        S_theta_ = scanning_vectors[:, i]
-        ADSINR[theta_index]=np.dot(np.conj(S_theta_),np.dot(R_inv,S_theta_))
-        theta_index += 1
-    
-    ADSINR = np.reciprocal(ADSINR)
-        
-    return ADSINR
-
-
 #TODO optimize with numba
 #@njit(fastmath=True, cache=True)
 def forward_backward_avg(R):
@@ -121,8 +87,6 @@ def forward_backward_avg(R):
 
     return np.array(R_fb)
 
-#TODO FIX LRU CACHE
-#@lru_cache(maxsize=32)
 @njit(fastmath=True, cache=True)
 def gen_scanning_vectors(M, x, y, thetas):
     """
@@ -153,24 +117,77 @@ def gen_scanning_vectors(M, x, y, thetas):
     """
     scanning_vectors = np.zeros((M, thetas.size), dtype=np.complex64)
     for i in range(thetas.size):        
-        scanning_vectors[:,i] = np.exp(1j*2*np.pi* (x*np.cos(np.deg2rad(thetas[i])) + y*np.sin(np.deg2rad(thetas[i]))))    
+        theta_rad = np.deg2rad(thetas[i])        
+        scanning_vectors[:,i] = np.exp(1j*2*np.pi* (x*np.cos(theta_rad) + y*np.sin(np.deg2rad(theta_rad))))    
     
     return np.ascontiguousarray(scanning_vectors)
 
+
+@lru_cache(maxsize=32)
+@njit(fastmath=True, cache=True)
+def gen_scanning_vectors_optimized(M, array_type, antenna_distance, detection_range):
+
+    if array_type == "ULA":
+        y = np.array([0, 0, 0, 0, 0])
+        x = np.array([0, 1, 2, 3, 4]) * antenna_distance
+    else:
+        raise RuntimeError("Unsupported array type, use unoptimized version")
+    
+    thetas = np.arange(-detection_range/2 - 90, detection_range/2 - 90)
+    
+
+    scanning_vectors = np.zeros((M, thetas.size), dtype=np.complex64)
+    for i in range(thetas.size):
+        theta_rad = np.deg2rad(thetas[i])        
+        scanning_vectors[:,i] = np.exp(1j*2*np.pi* (x*np.cos(theta_rad) + y*np.sin(np.deg2rad(theta_rad))))    
+    
+    return np.ascontiguousarray(scanning_vectors)
+
+
 #@njit(fastmath=True, cache=True)
-def infer_signal_dimension(correlation_matrix, threshold_ratio=0.1):
-    # Perform eigenvalue decomposition
-    eigenvalues, _ = np.linalg.eig(correlation_matrix)
+def spatial_smoothing(M, iq_samples ,P, direction): 
+        
+        N = iq_samples[0, :].size
+        L = M - P + 1  #Number of subarrays    
+
+        Rss = np.zeros((P, P), dtype=complex)  
+
+        if direction == "backward" or direction == "forward-backward":         
+            for l in range(L): 
+                Rxx = np.zeros((P, P), dtype=complex)  # Correlation matrix allocation 
+                for n in np.arange(0,N,1): 
+                    d = np.conj(iq_samples[M-l-P:M-l, n][::-1]) 
+                    Rxx += np.outer(d, np.conj(d)) 
+                np.divide(Rxx, N)  # normalization 
+                Rss += Rxx 
+
+        if not (direction == "forward" or direction == "backward" or direction == "forward-backward"):     
+            print("ERROR: Smoothing direction not recognized!") 
+            return -1 
+
+        # normalization            
+        if direction == "forward-backward": 
+            np.divide(Rss, 2*L)  
+        else: 
+            np.divide(Rss,L)  
+
+        return Rss
+
+@njit(fastmath=True, cache=True)
+def infer_signal_dimension(correlation_matrix, threshold_ratio=0.3):
+    # Compute eigenvalues
+    eigenvalues = np.linalg.eigvals(correlation_matrix)
     
-    # Sort eigenvalues in descending order
-    eigenvalues = np.sort(eigenvalues)[::-1]
+    # Compute magnitudes of eigenvalues
+    magnitudes = np.abs(eigenvalues)
     
-    # Determine the threshold based on the largest eigenvalue
-    threshold = threshold_ratio * eigenvalues[0]
+    # Sort magnitudes in descending order
+    sorted_magnitudes = -np.sort(-magnitudes) 
     
-    # Count the number of eigenvalues greater than the threshold
-    signal_dimension = np.sum(eigenvalues > threshold)
+    # Determine the threshold
+    threshold = threshold_ratio * sorted_magnitudes[0]
+    
+    # Find the number of eigenvalues greater than the threshold
+    signal_dimension = np.sum(sorted_magnitudes > threshold)
     
     return min(signal_dimension,4)
-
-
