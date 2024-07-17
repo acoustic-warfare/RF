@@ -218,7 +218,35 @@ class KrakenReceiver():
         elif self.f_type == 'FIR':
             self.iq_samples = signal.lfilter(self.filter, 1.0, self.iq_samples)
 
-    def music(self):
+
+    def music(self, index = [2, None]):
+        """
+        Performs Direction of Arrival (DOA) estimation using the MEM algorithm.
+
+        Returns:
+        numpy.ndarray
+            Array of estimated DOA angles in degrees.
+        """
+        
+        buffer = self.iq_samples[index[0]:index[1]]
+        x = self.x[index[0]:index[1]]
+        y = self.y[index[0]:index[1]]
+        buffer_dim = len(x)
+        print(f'buffer_dim = {buffer_dim}')
+        print(f' x = {x}')
+        #smoothed_buffer = self.spatial_smoothing_rewrite(2, 'forward-backward')
+        #spatial_corr_matrix = np.dot(smoothed_buffer, smoothed_buffer.conj().T)
+        spatial_corr_matrix = de.spatial_correlation_matrix(buffer, self.num_samples)
+        spatial_corr_matrix = de.forward_backward_avg(spatial_corr_matrix)
+        # scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
+        scanning_vectors = de.gen_scanning_vectors(buffer_dim, x, y, np.arange(-self.detection_range/2 -90, self.detection_range/2 -90))
+        sig_dim = 1 #de.infer_signal_dimension(spatial_corr_matrix)
+        doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, sig_dim)
+        #print(f'doa_max = {np.argmax(doa)}')
+        
+        return doa
+
+    def music_old(self):
         """
         Performs Direction of Arrival (DOA) estimation using the MEM algorithm.
 
