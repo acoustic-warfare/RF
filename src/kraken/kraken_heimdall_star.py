@@ -232,8 +232,8 @@ class KrakenReceiver():
         x = self.x[index[0]:index[1]]
         y = self.y[index[0]:index[1]]
         buffer_dim = len(x)
-        print(f'buffer_dim = {buffer_dim}')
-        print(f' x = {x}')
+        # print(f'buffer_dim = {buffer_dim}')
+        # print(f' x = {x}')
         #smoothed_buffer = self.spatial_smoothing_rewrite(2, 'forward-backward')
         #spatial_corr_matrix = np.dot(smoothed_buffer, smoothed_buffer.conj().T)
         spatial_corr_matrix = de.spatial_correlation_matrix(buffer, self.num_samples)
@@ -346,6 +346,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
 
         self.create_polar_grid()
         self.doa_curve = None  # Initialize doa_curve to None
+        self.doa_curve_2 = None  # Initialize doa_curve to None
 
     def create_polar_grid(self):
         """
@@ -380,7 +381,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             text_item.setPos(1.1 * np.cos(angle), 1.1 * np.sin(angle))
             self.doa_plot.addItem(text_item)
 
-    def plot_doa_circle(self, doa_data):
+    def plot_doa_circle(self, doa_data, doa_data_2):
         """
         Plots the direction of arrival (DOA) circle based on provided DOA data.
         
@@ -393,16 +394,50 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         angles = np.linspace(0, rad_limit, len(doa_data))
         x_values = doa_data * np.cos(angles)
         y_values = doa_data * np.sin(angles)
+        x_values_2 = doa_data_2 * np.cos(angles)
+        y_values_2 = doa_data_2 * np.sin(angles)
 
         #Close the polar plot loop
         x_values = np.append(x_values, [0])
         y_values = np.append(y_values, [0])
+        x_values_2 = np.append(x_values_2, [0])
+        y_values_2 = np.append(y_values_2, [0])
 
         if self.doa_curve is not None:
             self.doa_plot.removeItem(self.doa_curve)
+        if self.doa_curve_2 is not None:
+            self.doa_plot.removeItem(self.doa_curve_2)
 
         self.doa_curve = self.doa_plot.plot(x_values, y_values, pen=pg.mkPen(pg.mkColor(70,220,0), width=2), 
                                             fillLevel=0, brush=(255, 255, 0, 50))
+
+        self.doa_curve_2 = self.doa_plot.plot(x_values_2, y_values_2, pen=pg.mkPen(pg.mkColor(255,0,0), width=2), 
+                                            fillLevel=0, brush=(255, 255, 0, 50))
+
+    import numpy as np
+
+    def find_intersection(self, p1_start, angle1, p2_start, angle2):
+        
+        p1_start = np.asarray(p1_start)
+        p2_start = np.asarray(p2_start) 
+        
+        # Convert angles (in degrees) to direction vectors
+        r = np.array([np.sin(np.radians(angle1)), np.cos(np.radians(angle1))])
+        s = np.array([np.sin(np.radians(angle2)), np.cos(np.radians(angle2))])
+        
+        p = p1_start
+        q = p2_start
+        
+        # Calculate the cross products
+        cross_r_s = np.cross(r, s)
+        if cross_r_s == 0:
+            raise ValueError("Lines are parallel and do not intersect.")
+        
+        t = np.cross(q - p, s) / cross_r_s
+        
+        # Calculate the intersection point
+        intersection = p + t * r
+        return intersection
 
 
     def update_plots(self):
@@ -419,8 +454,10 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             kraken.apply_filter()
             #kraken.record_samples()
 
-            doa_data = kraken.music()
+            doa_data = kraken.music([0, 3])
             doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
+            doa_data_2 = kraken.music([2, None])
+            doa_data_2 = np.divide(np.abs(doa_data_2), np.max(np.abs(doa_data_2)))
                 
             freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.daq_sample_rate)  
             ant0 = np.abs(fft(kraken.iq_samples[0]))
@@ -429,7 +466,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             ant3 = np.abs(fft(kraken.iq_samples[3]))
             ant4 = np.abs(fft(kraken.iq_samples[4]))  
                 
-            self.plot_doa_circle(doa_data)
+            self.plot_doa_circle(doa_data, doa_data_2)
             self.fft_curve_0.setData(freqs, ant0)
             self.fft_curve_1.setData(freqs, ant1)
             self.fft_curve_2.setData(freqs, ant2)
@@ -437,7 +474,17 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             self.fft_curve_4.setData(freqs, ant4)
             self.doa_cartesian_curve.setData(np.linspace(0, len(doa_data), len(doa_data)), doa_data)
 
-            print(np.argmax(doa_data) - 90) 
+
+            ang_1 = np.argmax(doa_data) -90
+            ang_2 = np.argmax(doa_data_2) -90
+            point = self.find_intersection([-0.175, 0], ang_1, [0.175, 0], ang_2)
+            distance = np.sqrt(point[0]**2 + point[1]**2)
+            print(f'ang_1 = {ang_1} degrees') 
+            print(f'ang_2 = {ang_2} degrees')
+            # print(f'doa_1 = {np.argmax(doa_data) - 90} degrees') 
+            # print(f'doa_2 = {np.argmax(doa_data_2) - 90} degrees')
+            print(f'point of intersection = {point}') 
+            print(f'distance = {distance} meters')
 
         elif frame_type == 1:
             print("Received Dummy frame")
