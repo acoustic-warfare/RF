@@ -49,39 +49,39 @@ int main()
 
 	//	2.1 antennas
 	str_list = sdr->listAntennas( SOAPY_SDR_TX, 0);
-	printf("Rx antennas: ");
+	printf("Tx antennas: ");
 	for(int i = 0; i < str_list.size(); ++i)
 		printf("%s,", str_list[i].c_str());
 	printf("\n");
 
 	//	2.2 gains
 	str_list = sdr->listGains( SOAPY_SDR_TX, 0);
-	printf("Rx Gains: ");
+	printf("Tx Gains: ");
 	for(int i = 0; i < str_list.size(); ++i)
 		printf("%s, ", str_list[i].c_str());
 	printf("\n");
 
 	//	2.3. ranges(frequency ranges)
-	SoapySDR::RangeList ranges = sdr->getFrequencyRange( SOAPY_SDR_RX, 0);
-	printf("Rx freq ranges: ");
+	SoapySDR::RangeList ranges = sdr->getFrequencyRange( SOAPY_SDR_TX, 0);
+	printf("Tx freq ranges: ");
 	for(int i = 0; i < ranges.size(); ++i)
 		printf("[%g Hz -> %g Hz], ", ranges[i].minimum(), ranges[i].maximum());
 	printf("\n");
 
 	// 3. apply settings
-	sdr->setSampleRate( SOAPY_SDR_RX, 0, 10e6);
+	sdr->setSampleRate( SOAPY_SDR_TX, 0, 1e6);
 
-	sdr->setFrequency( SOAPY_SDR_RX, 0, 433e6);
+	sdr->setFrequency( SOAPY_SDR_TX, 0, 433e6);
 
 	// 4. setup a stream (complex floats)
-	SoapySDR::Stream *rx_stream = sdr->setupStream( SOAPY_SDR_RX, SOAPY_SDR_CF32);
-	if( rx_stream == NULL)
+	SoapySDR::Stream *rt_stream = sdr->setupStream( SOAPY_SDR_RX, SOAPY_SDR_CF32);
+	if( rt_stream == NULL)
 	{
 		fprintf( stderr, "Failed\n");
 		SoapySDR::Device::unmake( sdr );
 		return EXIT_FAILURE;
 	}
-	sdr->activateStream( rx_stream, 0, 0, 0);
+	sdr->activateStream( tx_stream, 0, 0, 0);
 
 	// 5. create a re-usable buffer for rx samples
 	std::complex<float> buff[1024];

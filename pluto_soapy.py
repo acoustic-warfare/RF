@@ -86,5 +86,6 @@ def visualize():
 
 
 if __name__ == "__main__":
+    init()
     visualize()
     input("")
