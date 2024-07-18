@@ -3,10 +3,18 @@ import numpy as np
 import h5py
 import sys
 import socket
+import cv2
 import scipy.signal as signal
 import direction_estimation as de
 import pyqtgraph as pg  
 import _thread
+import gi
+os.environ['GST_PLUGIN_PATH'] = '/usr/lib/gstreamer-1.0'
+os.environ['LD_LIBRARY_PATH'] = '/usr/lib/x86_64-linux-gnu'
+os.environ["GST_DEBUG"] = "3"
+gi.require_version('Gst', '1.0')
+gi.require_version('GLib', '2.0')
+from gi.repository import Gst, GLib
 from threading import Lock
 from struct import pack
 from PyQt5 import QtWidgets
@@ -16,7 +24,7 @@ from config import read_kraken_config
 from datetime import datetime
 from shmemIface import inShmemIface
 from iq_header import IQHeader
-from numba import jit
+
 
 class KrakenReceiver():
     """
@@ -170,7 +178,7 @@ class KrakenReceiver():
             print("Reconfiguration succesfully finished")
             
         else:
-            raise RuntimeError("Failed to set the requested parameter, reply: {0}".format(status))
+            raise RuntimeError(f"Failed to set the requested parameter, reply: {status}")
             
 
     def init_data_iface(self):
@@ -229,7 +237,6 @@ class KrakenReceiver():
 
         return self.iq_header.frame_type
 
-    @jit(fastmath=True, cache=True)
     def apply_filter(self):
         """
         Apply the configured filter to the IQ samples.
@@ -304,6 +311,43 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.update_plots)
         self.timer.start(0)
+        
+        # name=source is-live=true block=true format=GST_FORMAT_TIME '
+
+        #"videotestsrc ! videoconvert ! "
+        #    "video/x-raw,width=1920,height=1080 ! tee name=t ! x264enc tune=zerolatency "
+        #    "bitrate=500 speed-preset=ultrafast ! queue ! flvmux ! rtmp2sink "
+        #    "location=rtmp://ome.waraps.org/app/KrakenSDR t. ! glimagesink"
+
+        Gst.init(None)
+        print("GStreamer initialized successfully")
+
+        self.pipeline = Gst.parse_launch(
+            "appsrc name=source is-live=true block=true format=GST_FORMAT_TIME caps=video/x-raw,format=BGR,width=1920,height=1080,framerate=30/1 "
+            "! videoconvert ! video/x-raw,width=1920,height=1080 ! autovideosink"
+            )
+        self.appsrc = self.pipeline.get_by_name('source')
+        self.pipeline.set_state(Gst.State.PLAYING)
+
+    def grab_frame(self):
+        screen = app.primaryScreen()
+        screenshot = screen.grabWindow(self.winId())
+        qimage = screenshot.toImage()
+        width = qimage.width()
+        height = qimage.height()
+        ptr = qimage.bits()
+        ptr.setsize(qimage.byteCount())
+        arr = np.array(ptr).reshape(height, width, 4)
+        return cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
+    
+    def send_frame(self):
+        frame = self.grab_frame()
+        data = frame.tobytes()
+        buf = Gst.Buffer.new_allocate(None, len(data), None)
+        buf.fill(0, data)
+        self.appsrc.emit('push-buffer', buf)
+        print("frame sent")
+        return True
 
     def initUI(self):
         """
@@ -452,10 +496,11 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         else:
             print("Received Empty frame")
 
-
-kraken = KrakenReceiver()
-    
-app = QtWidgets.QApplication(sys.argv)
-plotter = RealTimePlotter()
-plotter.show()
-sys.exit(app.exec_())
+if __name__ == "__main__":
+    kraken = KrakenReceiver()
+        
+    app = QtWidgets.QApplication(sys.argv)
+    plotter = RealTimePlotter()
+    plotter.show()
+    GLib.timeout_add(1000 // 30, plotter.send_frame)
+    sys.exit(app.exec_())

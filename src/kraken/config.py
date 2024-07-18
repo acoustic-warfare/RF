@@ -83,11 +83,11 @@ def read_kraken_config():
     
     return center_freq, num_samples, sample_rate, antenna_distance, x, y, f_type, detection_range
 
-num_samples = 1024*64 # 1048576 # 
+num_samples = 1024*64 
 sample_rate = int(2.048e6)
 center_freq = int(433.9e6)
 gain = 40
-# Linear Setupself.num_antennas = 0  
+# Linear Setup
 y = np.array([0, 0, 0, 0, 0])
 x = np.array([-2, -1, 0, 1, 2])
 antenna_distance = 0.175
