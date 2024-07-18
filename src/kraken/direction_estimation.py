@@ -3,19 +3,53 @@ from numpy import linalg as lin
 from numba import njit
 from functools import lru_cache
 
+#This file contains numba optimized code from the pyargus library
+
 @njit(fastmath=True, cache=True)
 def spatial_correlation_matrix(samples, num_samples):
+    """
+    Computes the spatial correlation matrix for a given set of samples.
+
+    Parameters:
+    -----------
+    samples : ndarray
+        A 2D array where each column represents a sample.
+    num_samples : int
+        The number of samples.
+
+    Returns:
+    --------
+    spatial_corr_matrix : ndarray
+        The computed spatial correlation matrix.
+    """
     samples = np.ascontiguousarray(samples)
     spatial_corr_matrix = np.dot(samples, samples.conj().T)
     spatial_corr_matrix = np.divide(spatial_corr_matrix, num_samples)
     return spatial_corr_matrix
 
 @njit(fastmath=True, cache=True)
-def DOA_MUSIC(R, scanning_vectors, signal_dimension, angle_resolution=1):
+def DOA_MUSIC(R, scanning_vectors, signal_dimension):
+    """
+    Estimates the Direction of Arrival (DOA) using the MUSIC algorithm.
+
+    Parameters:
+    -----------
+    R : ndarray
+        Spatial correlation matrix.
+    scanning_vectors : ndarray
+        Array of scanning vectors.
+    signal_dimension : int
+        Number of signal sources.
+
+    Returns:
+    --------
+    ADORT : ndarray
+        Array of DOA estimates. If input dimensions are incorrect, returns an array with a single element (-1 or -2).
+    """
     # --> Input check
     if R[:, 0].size != R[0, :].size:
         print("ERROR: Correlation matrix is not quadratic")
-        return np.ones(1, dtype=np.complex64) * -1  # [(-1, -1j)]
+        return np.ones(1, dtype=np.complex64) * -1  
 
     if R[:, 0].size != scanning_vectors[:, 0].size:
         print("ERROR: Correlation matrix dimension does not match with the antenna array dimension")
@@ -49,43 +83,31 @@ def DOA_MUSIC(R, scanning_vectors, signal_dimension, angle_resolution=1):
 
     return ADORT
 
-#TODO optimize with numba
-#@njit(fastmath=True, cache=True)
+@njit(fastmath=True, cache=True)
 def forward_backward_avg(R):
     """
-        Calculates the forward-backward averaging of the input correlation matrix
-        
+    Computes the forward-backward averaged spatial correlation matrix.
+
     Parameters:
     -----------
-        :param R : Spatial correlation matrix
-        :type  R : M x M complex numpy array, M is the number of antenna elements.        
-            
-    Return values:
-    -------------
-    
-        :return R_fb : Forward-backward averaged correlation matrix
-        :rtype R_fb: M x M complex numpy array           
-        
-        :return -1, -1: Input spatial correlation matrix is not quadratic
-            
-    """         
-    # --> Input check
-    if np.size(R, 0) != np.size(R, 1):
-        print("ERROR: Correlation matrix is not quadratic")
-        return -1, -1 
-    
+    R : ndarray
+        Spatial correlation matrix.
+
+    Returns:
+    --------
+    R_fb : ndarray
+        The forward-backward averaged spatial correlation matrix.
+    """
     # --> Calculation
-    M = np.size(R, 0)  # Number of antenna elements
-    R = np.matrix(R)
-
-    # Create exchange matrix
-    J = np.eye(M)
-    J = np.fliplr(J) 
-    J = np.matrix(J)
+    M = R[:, 0].size 
     
-    R_fb = 0.5 * (R + J*np.conjugate(R)*J)
+    # Create exchange matrix
+    J = np.eye(M, dtype=np.complex64)
+    J = np.ascontiguousarray(np.fliplr(J))
+    
+    R_fb = 0.5 * (R + J@np.conjugate(R)@J)
 
-    return np.array(R_fb)
+    return np.ascontiguousarray(R_fb)
 
 @njit(fastmath=True, cache=True)
 def gen_scanning_vectors(M, x, y, thetas):
@@ -126,6 +148,27 @@ def gen_scanning_vectors(M, x, y, thetas):
 @lru_cache(maxsize=32)
 @njit(fastmath=True, cache=True)
 def gen_scanning_vectors_optimized(M, array_type, antenna_distance, detection_range):
+    """
+    Generates scanning vectors for a uniform linear array (ULA) configuration.
+    This function is suitable for use in situations where scanning vectors are dynamic.
+
+    Parameters:
+    -----------
+    M : int
+        Number of elements in the antenna array.
+    array_type : str
+        Type of antenna array. Currently, only "ULA" (Uniform Linear Array) is supported.
+    antenna_distance : float
+        Distance between adjacent antennas in the array.
+    detection_range : float
+        Range of angles to scan for detection, in degrees.
+
+    Returns:
+    --------
+    scanning_vectors : ndarray
+        A 2D array where each column represents a scanning vector corresponding to a specific angle.
+
+    """
 
     if array_type == "ULA":
         y = np.array([0, 0, 0, 0, 0])
@@ -135,7 +178,6 @@ def gen_scanning_vectors_optimized(M, array_type, antenna_distance, detection_ra
     
     thetas = np.arange(-detection_range/2 - 90, detection_range/2 - 90)
     
-
     scanning_vectors = np.zeros((M, thetas.size), dtype=np.complex64)
     for i in range(thetas.size):
         theta_rad = np.deg2rad(thetas[i])        
@@ -144,37 +186,73 @@ def gen_scanning_vectors_optimized(M, array_type, antenna_distance, detection_ra
     return np.ascontiguousarray(scanning_vectors)
 
 
-#@njit(fastmath=True, cache=True)
+@njit(fastmath=True, cache=True)
 def spatial_smoothing(M, iq_samples ,P, direction): 
-        
-        N = iq_samples[0, :].size
-        L = M - P + 1  #Number of subarrays    
+    """
+    Performs spatial smoothing on input IQ samples to improve signal processing in scenarios with coherent sources.
 
-        Rss = np.zeros((P, P), dtype=complex)  
+    Parameters:
+    -----------
+    M : int
+        Number of elements in the antenna array.
+    iq_samples : ndarray
+        2D array of IQ samples where each column represents a sample at a specific time.
+    P : int
+        Number of elements in each subarray for smoothing.
+    direction : str
+        Direction of smoothing, can be "forward", "backward", or "forward-backward".
 
-        if direction == "backward" or direction == "forward-backward":         
-            for l in range(L): 
-                Rxx = np.zeros((P, P), dtype=complex)  # Correlation matrix allocation 
-                for n in np.arange(0,N,1): 
-                    d = np.conj(iq_samples[M-l-P:M-l, n][::-1]) 
-                    Rxx += np.outer(d, np.conj(d)) 
-                np.divide(Rxx, N)  # normalization 
-                Rss += Rxx 
+    Returns:
+    --------
+    Rss : ndarray
+        The spatially smoothed correlation matrix.
 
-        if not (direction == "forward" or direction == "backward" or direction == "forward-backward"):     
-            print("ERROR: Smoothing direction not recognized!") 
-            return -1 
+    """
 
-        # normalization            
-        if direction == "forward-backward": 
-            np.divide(Rss, 2*L)  
-        else: 
-            np.divide(Rss,L)  
+    N = iq_samples[0, :].size
+    L = M - P + 1  #Number of subarrays    
 
-        return Rss
+    Rss = np.zeros((P, P), dtype=np.complex64)  
+    if direction == "forward" or direction == "forward-backward":            
+        for l in range(L):             
+            Rxx = np.zeros((P,P), dtype=np.complex64) # Correlation matrix allocation 
+            for n in np.arange(0,N,1): 
+                Rxx += np.outer(iq_samples[l:l+P,n], np.conj(iq_samples[l:l+P,n])) 
+            np.divide(Rxx,N) # normalization 
+            Rss += Rxx
+    if direction == "backward" or direction == "forward-backward":         
+        for l in range(L): 
+            Rxx = np.zeros((P, P), dtype=np.complex64)  # Correlation matrix allocation 
+            for n in np.arange(0,N,1): 
+                d = np.conj(iq_samples[M-l-P:M-l, n][::-1]) 
+                Rxx += np.outer(d, np.conj(d)) 
+            np.divide(Rxx,N)  # normalization 
+            Rss += Rxx 
+    # normalization            
+    if direction == "forward-backward": 
+        np.divide(Rss, 2*L)  
+    else: 
+        np.divide(Rss,L)  
+
+    return np.ascontiguousarray(Rss)
 
 @njit(fastmath=True, cache=True)
 def infer_signal_dimension(correlation_matrix, threshold_ratio=0.3):
+    """
+    Infers the signal dimension (number of signals) based on the eigenvalues of the correlation matrix.
+
+    Parameters:
+    -----------
+    correlation_matrix : ndarray
+        The input correlation matrix.
+    threshold_ratio : float, optional
+        Ratio of the threshold for determining signal dimension.
+
+    Returns:
+    --------
+    signal_dimension : int
+        The inferred number of signals, capped at a maximum of 4.
+    """
     # Compute eigenvalues
     eigenvalues = np.linalg.eigvals(correlation_matrix)
     

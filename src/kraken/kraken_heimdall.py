@@ -16,8 +16,13 @@ from config import read_kraken_config
 from datetime import datetime
 from shmemIface import inShmemIface
 from iq_header import IQHeader
+from numba import jit
 
 class KrakenReceiver():
+    """
+    KrakenReceiver class for managing data acquisition and signal processing for a KrakenSDR.
+
+    """
     def __init__(self):
 
         center_freq, num_samples, sample_rate, antenna_distance, x, y, f_type, detection_range = read_kraken_config()
@@ -49,7 +54,10 @@ class KrakenReceiver():
         self.ctr_iface_socket.connect(('127.0.0.1', self.ctr_iface_port))
         self.ctr_iface_init()
 
-        if f_type == 'butter':
+        self.init_filter()
+
+    def init_filter(self):
+        if self.f_type == 'butter':
             #Build digital filter
             fc = self.daq_center_freq
             fs = 4*fc
@@ -60,7 +68,7 @@ class KrakenReceiver():
             sos = signal.butter(0, wn, btype='lowpass', output='sos')
             self.filter = sos
 
-        elif f_type == 'FIR':
+        elif self.f_type == 'FIR':
             #Design a FIR filter using the firwin function
             numtaps = 51  # Number of filter taps (filter length)
             fc = self.daq_center_freq
@@ -70,7 +78,7 @@ class KrakenReceiver():
             taps = signal.firwin(numtaps, [highcut], fs=fs, pass_zero=True)
             self.filter = taps
 
-        elif f_type == 'LTI':
+        elif self.f_type == 'LTI':
             num = [0.0, 1.0]
             den = [4e-7, 1.0]
             # Convert to discrete-time system
@@ -92,7 +100,14 @@ class KrakenReceiver():
             RuntimeError()
                 
     def set_center_freq(self, center_freq):
+        """
+        Set the center frequency of the DAQ.
 
+        Parameters:
+        -----------
+        center_freq : int
+            The center frequency in MHz.
+        """
         self.daq_center_freq = int(center_freq)
         #Set center frequency
         cmd = "FREQ"
@@ -159,7 +174,9 @@ class KrakenReceiver():
             
 
     def init_data_iface(self):
-        # Open shared memory interface to capture the DAQ firmware output
+        """
+        Open shared memory interface to capture the DAQ firmware output.
+        """
         self.in_shmem_iface = inShmemIface(
             "delay_sync_iq", self.daq_shmem_control_path, read_timeout=5.0
         )
@@ -170,7 +187,12 @@ class KrakenReceiver():
 
     def get_iq_online(self):
         """
-        This function obtains a new IQ data frame through the Ethernet IQ data or the shared memory interface
+        Obtain a new IQ data frame through the Ethernet IQ data or the shared memory interface.
+
+        Returns:
+        --------
+        frame_type : int
+            Type of the frame received.
         """
 
         active_buff_index = self.in_shmem_iface.wait_buff_free()
@@ -207,8 +229,12 @@ class KrakenReceiver():
 
         return self.iq_header.frame_type
 
+    @jit(fastmath=True, cache=True)
     def apply_filter(self):
-        
+        """
+        Apply the configured filter to the IQ samples.
+
+        """
         if self.f_type == 'none': 
             pass
         elif self.f_type == 'LTI':
@@ -234,6 +260,10 @@ class KrakenReceiver():
         return doa
 
     def record_samples(self):
+        """
+        Record IQ samples to an HDF5 file.
+
+        """
         if self.file:
             with h5py.File(self.file, 'a') as hf:
                 # Check if the dataset exists
