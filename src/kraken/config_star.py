@@ -49,7 +49,7 @@ gain = 40
 # Linear Setup
 # self.num_antennas = 0  
 y = np.array([0, 0.35, 0.175, 0, 0])
-x = np.array([0, 0, 0.247, 0, 0])
+x = np.array([0, 0, -0.247, 0, 0])
 antenna_distance = 1
 
 # Circular setup

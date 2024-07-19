@@ -219,7 +219,7 @@ class KrakenReceiver():
             self.iq_samples = signal.lfilter(self.filter, 1.0, self.iq_samples)
 
 
-    def music(self, index = [0, None], invert = 0, angle_offs = 0):
+    def music(self, index = [0, 1, 2, 3, 4], invert = 0, angle_offs = 0):
         """
         Performs Direction of Arrival (DOA) estimation using the MEM algorithm.
 
@@ -227,23 +227,20 @@ class KrakenReceiver():
         numpy.ndarray
             Array of estimated DOA angles in degrees.
         """
-        
 
-        if invert:
-            y = [self.x[i] for i in index]
-            x = [self.y[i] for i in index]
-        else:
-            x = self.x[index[0]:index[1]]
-            y = self.y[index[0]:index[1]]
-            # x = [np.float64(0.0), np.float64(0.35), np.float64(0.175)]
-            #y = [np.float64(0.0), np.float64(0.0), np.float64(0.247)]
-            # x = [0.0, 0.35, 0.175]
-            # y = [0.0, 0.0, 0.247]
-        buffer = self.iq_samples[index[0]:index[1]]
+        x = np.array([self.x[i] for i in index])
+        y = np.array([self.y[i] for i in index])
+        # print(f' x = {x}')
+        # print(f' y = {y}')
+    
+        # x = [np.float64(0.0), np.float64(0.35), np.float64(0.175)]
+        #y = [np.float64(0.0), np.float64(0.0), np.float64(0.247)]
+        # x = [0.0, 0.35, 0.175]
+        # y = [0.0, 0.0, 0.247]
+        buffer = np.array([self.iq_samples[i] for i in index]) #self.iq_samples[1]].pop()
         buffer_dim = len(x)
         # print(f'buffer_dim = {buffer_dim}')
-        print(f' x = {x}')
-        print(f' y = {y}')
+
         #smoothed_buffer = self.spatial_smoothing_rewrite(2, 'forward-backward')
         #spatial_corr_matrix = np.dot(smoothed_buffer, smoothed_buffer.conj().T)
         spatial_corr_matrix = de.spatial_correlation_matrix(buffer, self.num_samples)
@@ -254,21 +251,6 @@ class KrakenReceiver():
         doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, sig_dim)
         #print(f'doa_max = {np.argmax(doa)}')
         
-        return doa
-
-    def music_old(self):
-        """
-        Performs Direction of Arrival (DOA) estimation using the MEM algorithm.
-
-        Returns:
-        numpy.ndarray
-            Array of estimated DOA angles in degrees.
-        """
-        spatial_corr_matrix = de.spatial_correlation_matrix(self.iq_samples, self.num_samples)
-        spatial_corr_matrix = de.forward_backward_avg(spatial_corr_matrix)
-        sig_dim = de.infer_signal_dimension(spatial_corr_matrix)
-        doa = de.DOA_MUSIC(spatial_corr_matrix, self.scanning_vectors, sig_dim)
-
         return doa
 
     def record_samples(self):
@@ -360,6 +342,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.doa_curve_3 = None
         self.doa_curves = [self.doa_curve, self.doa_curve_2, self.doa_curve_3]
         self.color_list = ['red', 'green', 'blue', 'yellow', 'pink', 'orange']
+        
         
 
     def create_polar_grid(self):
@@ -469,12 +452,76 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             kraken.apply_filter()
             #kraken.record_samples()
 
-            doa_data = kraken.music([0, 2], angle_offs = 0)
+            doa_data = kraken.music([0, 1], angle_offs = 0)
             doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
-            doa_data_2 = kraken.music([1, 3], angle_offs = 0)
+            doa_data_2 = kraken.music([1, 2], angle_offs = 0)
             doa_data_2 = np.divide(np.abs(doa_data_2), np.max(np.abs(doa_data_2)))
-            doa_data_3 = kraken.music([2, 4], angle_offs = 0)
+            doa_data_3 = kraken.music([2, 0], angle_offs = 0)
             doa_data_3 = np.divide(np.abs(doa_data_3), np.max(np.abs(doa_data_3)))
+            doa_datas = [doa_data, doa_data_2, doa_data_3]
+
+            ang_1 = np.argmax(doa_data)  #+7
+            ang_2 = np.argmax(doa_data_2) #-10
+            ang_3 = np.argmax(doa_data_3) #-10
+
+            angs = [ang_1, ang_1, ang_2, ang_2, ang_3, ang_3]
+            ang_centers = [0, 180, 120, 300, 60, 240]
+            ang_floors = [0, 0, 120, 120, 60, 60]
+            ang_roofs = [180, 180, 300, 300, 240, 240]
+            ang_center_diffs = [abs(ang_centers_i - angs_i) for ang_centers_i, angs_i in zip(ang_centers, angs)]
+            #ang_center_diffs = [0-ang_1, 180-ang_1, 120-ang_2, 300-ang_2, 60-ang_3, 240-ang_3]
+            ang_min_diff = min(ang_center_diffs)
+            index_best = ang_center_diffs.index(ang_min_diff)
+            ang_best = angs[index_best]
+            #if ang_best > 145: ang_best += 10
+
+            # +10 degree offset needed for ang_2 and ang_3 when above 180 degrees
+            
+            print(f'best angle (first) = {ang_best} degrees') 
+
+
+            # # ang_1 is best
+            # if index_best < 2:    
+            #     ang_avg = sum([ang_2, ang_3])/2
+            #     semi_circles = [abs(ang_avg), abs(180-ang_avg)]
+            #     array_best = 1
+
+            # # ang_3 is best
+            # elif index_best > 3:
+            #     ang_avg = sum([ang_1, ang_2])/2
+            #     semi_circles = [abs(60-ang_avg), abs(240-ang_avg)]
+            #     array_best = 3
+            #     print('trace')
+
+            # # ang_2 is best# ang_2 is best
+            # else:
+            #     ang_avg = sum([ang_1, ang_3])/2
+            #     semi_circles = [abs(120-ang_avg), abs(300-ang_avg)]
+            #     array_best = 2
+                
+            # if semi_circles[1] < semi_circles[0]:
+                
+            #     if abs(ang_roofs[index_best] - ang_best) < abs(ang_floors[index_best] - ang_best):
+            #         print('trace3')
+            #         ang_delta = ang_roofs[index_best] - ang_best
+            #         ang_best = ang_best - 180 - 2*ang_delta + 10
+            #         print(f'ang_delta = {ang_delta}')
+            # elif abs(ang_roofs[index_best] - ang_best) > abs(ang_floors[index_best] - ang_best):
+            #     print('trace2')
+            #     print(f'ang_c2 {ang_roofs[index_best]}')
+            #     ang_delta = ang_floors[index_best] - ang_best
+            #     ang_best = ang_best + 180 + 2*ang_delta
+            #     print(f'ang_delta = {ang_delta}')
+
+            # print(f'c0 = {semi_circles[0]}')
+            # print(f'c1 = {semi_circles[1]}')
+            # print(f'avg = {ang_avg}')
+
+
+
+            print(f'best index = {index_best}') 
+            print(f'best angle = {ang_best} degrees') 
+
             
             freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.daq_sample_rate)  
             ant0 = np.abs(fft(kraken.iq_samples[0]))
@@ -483,7 +530,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             ant3 = np.abs(fft(kraken.iq_samples[3]))
             ant4 = np.abs(fft(kraken.iq_samples[4]))  
             
-            doa_datas = [doa_data, doa_data_2, doa_data_3]
+            
             self.plot_doa_circle(doa_datas)
             self.fft_curve_0.setData(freqs, ant0)
             # self.fft_curve_1.setData(freqs, ant1)
@@ -493,12 +540,12 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             self.doa_cartesian_curve.setData(np.linspace(0, len(doa_data), len(doa_data)), doa_data)
 
 
-            ang_1 = np.argmax(doa_data)  #+7
-            ang_2 = np.argmax(doa_data_2) #-10
+
             #point = self.find_intersection([-0.175, 0], ang_1, [0.175, 0], ang_2)
             #distance = np.sqrt(point[0]**2 + point[1]**2)
-            print(f'ang_1 = {ang_1} degrees') 
-            print(f'ang_2 = {ang_2} degrees')
+            # print(f'ang_1 = {ang_1} degrees') 
+            # print(f'ang_2 = {ang_2} degrees')
+            # print(f'ang_2 = {ang_3} degrees')
             # print(f'doa_1 = {np.argmax(doa_data) - 90} degrees') 
             # print(f'doa_2 = {np.argmax(doa_data_2) - 90} degrees')
             # print(f'point of intersection = {point}') 
