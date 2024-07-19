@@ -25,6 +25,8 @@ def spatial_correlation_matrix(samples, num_samples):
     samples = np.ascontiguousarray(samples)
     spatial_corr_matrix = np.dot(samples, samples.conj().T).astype(np.complex64)
     spatial_corr_matrix = np.divide(spatial_corr_matrix, num_samples)
+    spatial_corr_matrix = np.dot(samples, samples.conj().T)
+    spatial_corr_matrix = np.divide(spatial_corr_matrix, num_samples).astype(np.complex64)
     return spatial_corr_matrix
 
 @njit(fastmath=True, cache=True)
@@ -104,7 +106,7 @@ def forward_backward_avg(R):
     # Create exchange matrix
     J = np.eye(M, dtype=np.complex64)
     J = np.ascontiguousarray(np.fliplr(J))
-    
+
     R_fb = 0.5 * (R + J@np.conjugate(R)@J)
 
     return np.ascontiguousarray(R_fb)
