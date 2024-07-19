@@ -9,7 +9,7 @@ import direction_estimation as de
 import pyqtgraph as pg  
 import _thread
 import gi
-os.environ['GST_PLUGIN_PATH'] = '/usr/lib/gstreamer-1.0'
+os.environ['GST_PLUGIN_PATH'] = "/usr/lib/x86_64-linux-gnu/gstreamer-1.0"
 os.environ['LD_LIBRARY_PATH'] = '/usr/lib/x86_64-linux-gnu'
 os.environ["GST_DEBUG"] = "3"
 gi.require_version('Gst', '1.0')
@@ -18,12 +18,13 @@ from gi.repository import Gst, GLib
 from threading import Lock
 from struct import pack
 from PyQt5 import QtWidgets
-from pyqtgraph.Qt import QtCore
+from pyqtgraph.Qt import QtCore, QtGui
 from scipy.fft import fft
 from config import read_kraken_config
 from datetime import datetime
 from shmemIface import inShmemIface
 from iq_header import IQHeader
+import time
 
 
 class KrakenReceiver():
@@ -33,7 +34,7 @@ class KrakenReceiver():
     """
     def __init__(self):
 
-        center_freq, num_samples, sample_rate, antenna_distance, x, y, f_type, detection_range = read_kraken_config()
+        center_freq, num_samples, sample_rate, antenna_distance, x, y, f_type, detection_range, waraps = read_kraken_config()
         self.daq_center_freq = center_freq  # MHz
         self.num_samples = num_samples
         self.daq_sample_rate = sample_rate
@@ -44,6 +45,7 @@ class KrakenReceiver():
         self.detection_range = detection_range
         self.thetas = np.arange(-self.detection_range/2 - 90, self.detection_range/2 - 90)
         self.scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, self.thetas)
+        self.waraps = waraps
 
         #Shared memory setup
         root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
@@ -311,42 +313,44 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.update_plots)
         self.timer.start(0)
-        
-        # name=source is-live=true block=true format=GST_FORMAT_TIME '
 
-        #"videotestsrc ! videoconvert ! "
-        #    "video/x-raw,width=1920,height=1080 ! tee name=t ! x264enc tune=zerolatency "
-        #    "bitrate=500 speed-preset=ultrafast ! queue ! flvmux ! rtmp2sink "
-        #    "location=rtmp://ome.waraps.org/app/KrakenSDR t. ! glimagesink"
+        if kraken.waraps:
+            Gst.init(None)
+            print("GStreamer initialized successfully")
 
-        Gst.init(None)
-        print("GStreamer initialized successfully")
-
-        self.pipeline = Gst.parse_launch(
-            "appsrc name=source is-live=true block=true format=GST_FORMAT_TIME caps=video/x-raw,format=BGR,width=1920,height=1080,framerate=30/1 "
-            "! videoconvert ! video/x-raw,width=1920,height=1080 ! autovideosink"
-            )
-        self.appsrc = self.pipeline.get_by_name('source')
-        self.pipeline.set_state(Gst.State.PLAYING)
+            self.pipeline = Gst.parse_launch(
+                " appsrc name=doa is_live=true block=true format=GST_FORMAT_TIME caps=video/x-raw,width=1280,format=RGB,height=720,framerate=30/1 "
+                " ! videoconvert ! x264enc tune=zerolatency speed-preset=superfast bitrate=2500"
+                " ! queue ! flvmux streamable=true ! rtmp2sink location=rtmp://ome.waraps.org/app/KrakenSDR"
+                )
+            
+            self.appsrc = self.pipeline.get_by_name('doa')
+            self.start_time = time.time()
+            self.pipeline.set_state(Gst.State.PLAYING)
 
     def grab_frame(self):
-        screen = app.primaryScreen()
-        screenshot = screen.grabWindow(self.winId())
-        qimage = screenshot.toImage()
+        pixmap = QtGui.QPixmap(self.size())
+        self.render(pixmap)
+
+        qimage = pixmap.toImage().convertToFormat(QtGui.QImage.Format_RGB888)
+    
         width = qimage.width()
         height = qimage.height()
         ptr = qimage.bits()
         ptr.setsize(qimage.byteCount())
-        arr = np.array(ptr).reshape(height, width, 4)
-        return cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
+        arr = np.array(ptr).reshape(height, width, 3)
+        return arr 
     
     def send_frame(self):
         frame = self.grab_frame()
         data = frame.tobytes()
         buf = Gst.Buffer.new_allocate(None, len(data), None)
+        timestamp = (time.time() - self.start_time) * Gst.SECOND
+        buf.pts = timestamp
+        buf.dts = timestamp
+        buf.duration = Gst.SECOND // 30
         buf.fill(0, data)
         self.appsrc.emit('push-buffer', buf)
-        print("frame sent")
         return True
 
     def initUI(self):
@@ -498,9 +502,9 @@ class RealTimePlotter(QtWidgets.QMainWindow):
 
 if __name__ == "__main__":
     kraken = KrakenReceiver()
-        
     app = QtWidgets.QApplication(sys.argv)
     plotter = RealTimePlotter()
     plotter.show()
-    GLib.timeout_add(1000 // 30, plotter.send_frame)
+    if kraken.waraps:
+        GLib.timeout_add(1000 // 30, plotter.send_frame)
     sys.exit(app.exec_())
