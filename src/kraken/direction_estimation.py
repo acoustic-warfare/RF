@@ -23,7 +23,7 @@ def spatial_correlation_matrix(samples, num_samples):
         The computed spatial correlation matrix.
     """
     samples = np.ascontiguousarray(samples)
-    spatial_corr_matrix = np.dot(samples, samples.conj().T)
+    spatial_corr_matrix = np.dot(samples, samples.conj().T).astype(np.complex64)
     spatial_corr_matrix = np.divide(spatial_corr_matrix, num_samples)
     return spatial_corr_matrix
 
@@ -140,7 +140,7 @@ def gen_scanning_vectors(M, x, y, thetas):
     scanning_vectors = np.zeros((M, thetas.size), dtype=np.complex64)
     for i in range(thetas.size):        
         theta_rad = np.deg2rad(thetas[i])        
-        scanning_vectors[:,i] = np.exp(1j*2*np.pi* (x*np.cos(theta_rad) + y*np.sin(np.deg2rad(theta_rad))))    
+        scanning_vectors[:,i] = np.exp(1j*2*np.pi* (x*np.cos(theta_rad) + y*np.sin(theta_rad)))    
     
     return np.ascontiguousarray(scanning_vectors)
 

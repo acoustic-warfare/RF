@@ -29,7 +29,7 @@ class KrakenReceiver():
         self.num_antennas = x.size
         self.f_type = f_type
         self.detection_range = detection_range
-        self.thetas = np.arange(-self.detection_range/2 - 90, self.detection_range/2 - 90)
+        self.thetas = np.arange(0, self.detection_range)
         self.scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, self.thetas)
 
         #Shared memory setup
@@ -219,7 +219,7 @@ class KrakenReceiver():
             self.iq_samples = signal.lfilter(self.filter, 1.0, self.iq_samples)
 
 
-    def music(self, index = [2, None]):
+    def music(self, index = [0, None], invert = 0, angle_offs = 0):
         """
         Performs Direction of Arrival (DOA) estimation using the MEM algorithm.
 
@@ -228,18 +228,28 @@ class KrakenReceiver():
             Array of estimated DOA angles in degrees.
         """
         
+
+        if invert:
+            y = [self.x[i] for i in index]
+            x = [self.y[i] for i in index]
+        else:
+            x = self.x[index[0]:index[1]]
+            y = self.y[index[0]:index[1]]
+            # x = [np.float64(0.0), np.float64(0.35), np.float64(0.175)]
+            #y = [np.float64(0.0), np.float64(0.0), np.float64(0.247)]
+            # x = [0.0, 0.35, 0.175]
+            # y = [0.0, 0.0, 0.247]
         buffer = self.iq_samples[index[0]:index[1]]
-        x = self.x[index[0]:index[1]]
-        y = self.y[index[0]:index[1]]
         buffer_dim = len(x)
         # print(f'buffer_dim = {buffer_dim}')
-        # print(f' x = {x}')
+        print(f' x = {x}')
+        print(f' y = {y}')
         #smoothed_buffer = self.spatial_smoothing_rewrite(2, 'forward-backward')
         #spatial_corr_matrix = np.dot(smoothed_buffer, smoothed_buffer.conj().T)
         spatial_corr_matrix = de.spatial_correlation_matrix(buffer, self.num_samples)
         spatial_corr_matrix = de.forward_backward_avg(spatial_corr_matrix)
         # scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
-        scanning_vectors = de.gen_scanning_vectors(buffer_dim, x, y, np.arange(-self.detection_range/2 -90, self.detection_range/2 -90))
+        scanning_vectors = de.gen_scanning_vectors(buffer_dim, x, y, np.arange(angle_offs, self.detection_range + angle_offs))
         sig_dim = 1 #de.infer_signal_dimension(spatial_corr_matrix)
         doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, sig_dim)
         #print(f'doa_max = {np.argmax(doa)}')
@@ -324,21 +334,21 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.fft_curve_0 = self.fft_plot_0.plot(pen='r')
         self.layout.addWidget(self.fft_plot_0, 0, 1, 1, 1)
         
-        self.fft_plot_1 = pg.PlotWidget(title="FFT Antenna 1")
-        self.fft_curve_1 = self.fft_plot_1.plot(pen='g')
-        self.layout.addWidget(self.fft_plot_1, 1, 0, 1, 1)
+        # self.fft_plot_1 = pg.PlotWidget(title="FFT Antenna 1")
+        # self.fft_curve_1 = self.fft_plot_1.plot(pen='g')
+        # self.layout.addWidget(self.fft_plot_1, 1, 0, 1, 1)
         
-        self.fft_plot_2 = pg.PlotWidget(title="FFT Antenna 2")
-        self.fft_curve_2 = self.fft_plot_2.plot(pen='b')
-        self.layout.addWidget(self.fft_plot_2, 1, 1, 1, 1)
+        # self.fft_plot_2 = pg.PlotWidget(title="FFT Antenna 2")
+        # self.fft_curve_2 = self.fft_plot_2.plot(pen='b')
+        # self.layout.addWidget(self.fft_plot_2, 1, 1, 1, 1)
 
-        self.fft_plot_3 = pg.PlotWidget(title="FFT Antenna 3")
-        self.fft_curve_3 = self.fft_plot_3.plot(pen='y')  # Changed to yellow
-        self.layout.addWidget(self.fft_plot_3, 2, 0, 1, 1)
+        # self.fft_plot_3 = pg.PlotWidget(title="FFT Antenna 3")
+        # self.fft_curve_3 = self.fft_plot_3.plot(pen='y')  # Changed to yellow
+        # self.layout.addWidget(self.fft_plot_3, 2, 0, 1, 1)
 
-        self.fft_plot_4 = pg.PlotWidget(title="FFT Antenna 4")
-        self.fft_curve_4 = self.fft_plot_4.plot(pen='c')  # Changed to cyan
-        self.layout.addWidget(self.fft_plot_4, 2, 1, 1, 1)
+        # self.fft_plot_4 = pg.PlotWidget(title="FFT Antenna 4")
+        # self.fft_curve_4 = self.fft_plot_4.plot(pen='c')  # Changed to cyan
+        # self.layout.addWidget(self.fft_plot_4, 2, 1, 1, 1)
 
         self.doa_cartesian_plot = pg.PlotWidget(title="Direction of Arrival (Cartesian)")
         self.doa_cartesian_curve = self.doa_cartesian_plot.plot(pen=pg.mkPen(pg.mkColor(70,220,0), width=2))
@@ -346,7 +356,11 @@ class RealTimePlotter(QtWidgets.QMainWindow):
 
         self.create_polar_grid()
         self.doa_curve = None  # Initialize doa_curve to None
-        self.doa_curve_2 = None  # Initialize doa_curve to None
+        self.doa_curve_2 = None
+        self.doa_curve_3 = None
+        self.doa_curves = [self.doa_curve, self.doa_curve_2, self.doa_curve_3]
+        self.color_list = ['red', 'green', 'blue', 'yellow', 'pink', 'orange']
+        
 
     def create_polar_grid(self):
         """
@@ -369,19 +383,19 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.doa_plot.plot(x, y, pen=pg.mkPen('dark green', width=2))
 
         #Add direction lines (every 20 degrees)
-        for angle in np.linspace(0, rad_limit, 19, endpoint=endpoint):
+        for angle in np.linspace(0, rad_limit, 18, endpoint=endpoint):
             x_line = [0, radius * np.cos(angle)]
             y_line = [0, radius * np.sin(angle)]
             self.doa_plot.plot(x_line, y_line, pen=pg.mkPen('dark green', width=1))
 
         #Add labels (every 20 degrees)
-        for angle in np.linspace(0, rad_limit, 19, endpoint=endpoint):
-            text = f'{int(round(np.degrees(angle-rad_limit/2), -1))}°'
+        for angle in np.linspace(0, rad_limit, 18, endpoint=endpoint):
+            text = f'{int(round(np.degrees(angle), -1))}°'
             text_item = pg.TextItem(text, anchor=(0.5, 0.5))
             text_item.setPos(1.1 * np.cos(angle), 1.1 * np.sin(angle))
             self.doa_plot.addItem(text_item)
 
-    def plot_doa_circle(self, doa_data, doa_data_2):
+    def plot_doa_circle(self, doa_datas):
         """
         Plots the direction of arrival (DOA) circle based on provided DOA data.
         
@@ -391,30 +405,31 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         """
         rad_limit = np.radians(kraken.detection_range)
         
-        angles = np.linspace(0, rad_limit, len(doa_data))
-        x_values = doa_data * np.cos(angles)
-        y_values = doa_data * np.sin(angles)
-        x_values_2 = doa_data_2 * np.cos(angles)
-        y_values_2 = doa_data_2 * np.sin(angles)
+        cal = 0 #np.radians(10)
+        cal_2 = 0 # np.radians(-7)
+        
+        angles = [None for datas in doa_datas]
+        x_values = [None for datas in doa_datas]
+        y_values = [None for datas in doa_datas]
+        self.doa_curve = [None for datas in doa_datas]
 
-        #Close the polar plot loop
-        x_values = np.append(x_values, [0])
-        y_values = np.append(y_values, [0])
-        x_values_2 = np.append(x_values_2, [0])
-        y_values_2 = np.append(y_values_2, [0])
+        for n, data in enumerate(doa_datas):
 
-        if self.doa_curve is not None:
-            self.doa_plot.removeItem(self.doa_curve)
-        if self.doa_curve_2 is not None:
-            self.doa_plot.removeItem(self.doa_curve_2)
+            angles[n] = np.linspace(0 + cal, rad_limit + cal, len(data))
+        
+            x_values[n] = data * np.cos(angles[n])
+            y_values[n] = data * np.sin(angles[n])
+            
+            #Close the polar plot loop
+            x_values[n] = np.append(x_values[n], [0])
+            y_values[n] = np.append(y_values[n], [0])
 
-        self.doa_curve = self.doa_plot.plot(x_values, y_values, pen=pg.mkPen(pg.mkColor(70,220,0), width=2), 
-                                            fillLevel=0, brush=(255, 255, 0, 50))
+            if self.doa_curves[n] is not None:
+                self.doa_plot.removeItem(self.doa_curves[n])
 
-        self.doa_curve_2 = self.doa_plot.plot(x_values_2, y_values_2, pen=pg.mkPen(pg.mkColor(255,0,0), width=2), 
-                                            fillLevel=0, brush=(255, 255, 0, 50))
+            self.doa_curves[n] = self.doa_plot.plot(x_values[n], y_values[n], pen=pg.mkPen(self.color_list[n], width = 2), 
+                                                fillLevel=0, brush= pg.mkBrush(None))
 
-    import numpy as np
 
     def find_intersection(self, p1_start, angle1, p2_start, angle2):
         
@@ -432,7 +447,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         cross_r_s = np.cross(r, s)
         if cross_r_s == 0:
             raise ValueError("Lines are parallel and do not intersect.")
-        
+    
         t = np.cross(q - p, s) / cross_r_s
         
         # Calculate the intersection point
@@ -454,37 +469,40 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             kraken.apply_filter()
             #kraken.record_samples()
 
-            doa_data = kraken.music([0, 3])
+            doa_data = kraken.music([0, 2], angle_offs = 0)
             doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
-            doa_data_2 = kraken.music([2, None])
+            doa_data_2 = kraken.music([1, 3], angle_offs = 0)
             doa_data_2 = np.divide(np.abs(doa_data_2), np.max(np.abs(doa_data_2)))
-                
+            doa_data_3 = kraken.music([2, 4], angle_offs = 0)
+            doa_data_3 = np.divide(np.abs(doa_data_3), np.max(np.abs(doa_data_3)))
+            
             freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.daq_sample_rate)  
             ant0 = np.abs(fft(kraken.iq_samples[0]))
             ant1 = np.abs(fft(kraken.iq_samples[1]))
             ant2 = np.abs(fft(kraken.iq_samples[2]))
             ant3 = np.abs(fft(kraken.iq_samples[3]))
             ant4 = np.abs(fft(kraken.iq_samples[4]))  
-                
-            self.plot_doa_circle(doa_data, doa_data_2)
+            
+            doa_datas = [doa_data, doa_data_2, doa_data_3]
+            self.plot_doa_circle(doa_datas)
             self.fft_curve_0.setData(freqs, ant0)
-            self.fft_curve_1.setData(freqs, ant1)
-            self.fft_curve_2.setData(freqs, ant2)
-            self.fft_curve_3.setData(freqs, ant3)
-            self.fft_curve_4.setData(freqs, ant4)
+            # self.fft_curve_1.setData(freqs, ant1)
+            # self.fft_curve_2.setData(freqs, ant2)
+            # self.fft_curve_3.setData(freqs, ant3)
+            # self.fft_curve_4.setData(freqs, ant4)
             self.doa_cartesian_curve.setData(np.linspace(0, len(doa_data), len(doa_data)), doa_data)
 
 
-            ang_1 = np.argmax(doa_data) -90
-            ang_2 = np.argmax(doa_data_2) -90
-            point = self.find_intersection([-0.175, 0], ang_1, [0.175, 0], ang_2)
-            distance = np.sqrt(point[0]**2 + point[1]**2)
+            ang_1 = np.argmax(doa_data)  #+7
+            ang_2 = np.argmax(doa_data_2) #-10
+            #point = self.find_intersection([-0.175, 0], ang_1, [0.175, 0], ang_2)
+            #distance = np.sqrt(point[0]**2 + point[1]**2)
             print(f'ang_1 = {ang_1} degrees') 
             print(f'ang_2 = {ang_2} degrees')
             # print(f'doa_1 = {np.argmax(doa_data) - 90} degrees') 
             # print(f'doa_2 = {np.argmax(doa_data_2) - 90} degrees')
-            print(f'point of intersection = {point}') 
-            print(f'distance = {distance} meters')
+            # print(f'point of intersection = {point}') 
+            # print(f'distance = {distance} meters')
 
         elif frame_type == 1:
             print("Received Dummy frame")

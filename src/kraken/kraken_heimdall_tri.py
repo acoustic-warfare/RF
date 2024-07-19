@@ -12,17 +12,12 @@ from struct import pack
 from PyQt5 import QtWidgets
 from pyqtgraph.Qt import QtCore
 from scipy.fft import fft
-from config import read_kraken_config
+from config_star import read_kraken_config
 from datetime import datetime
 from shmemIface import inShmemIface
 from iq_header import IQHeader
-from numba import jit
 
 class KrakenReceiver():
-    """
-    KrakenReceiver class for managing data acquisition and signal processing for a KrakenSDR.
-
-    """
     def __init__(self):
 
         center_freq, num_samples, sample_rate, antenna_distance, x, y, f_type, detection_range = read_kraken_config()
@@ -54,10 +49,7 @@ class KrakenReceiver():
         self.ctr_iface_socket.connect(('127.0.0.1', self.ctr_iface_port))
         self.ctr_iface_init()
 
-        self.init_filter()
-
-    def init_filter(self):
-        if self.f_type == 'butter':
+        if f_type == 'butter':
             #Build digital filter
             fc = self.daq_center_freq
             fs = 4*fc
@@ -68,7 +60,7 @@ class KrakenReceiver():
             sos = signal.butter(0, wn, btype='lowpass', output='sos')
             self.filter = sos
 
-        elif self.f_type == 'FIR':
+        elif f_type == 'FIR':
             #Design a FIR filter using the firwin function
             numtaps = 51  # Number of filter taps (filter length)
             fc = self.daq_center_freq
@@ -78,7 +70,7 @@ class KrakenReceiver():
             taps = signal.firwin(numtaps, [highcut], fs=fs, pass_zero=True)
             self.filter = taps
 
-        elif self.f_type == 'LTI':
+        elif f_type == 'LTI':
             num = [0.0, 1.0]
             den = [4e-7, 1.0]
             # Convert to discrete-time system
@@ -100,14 +92,7 @@ class KrakenReceiver():
             RuntimeError()
                 
     def set_center_freq(self, center_freq):
-        """
-        Set the center frequency of the DAQ.
 
-        Parameters:
-        -----------
-        center_freq : int
-            The center frequency in MHz.
-        """
         self.daq_center_freq = int(center_freq)
         #Set center frequency
         cmd = "FREQ"
@@ -174,9 +159,7 @@ class KrakenReceiver():
             
 
     def init_data_iface(self):
-        """
-        Open shared memory interface to capture the DAQ firmware output.
-        """
+        # Open shared memory interface to capture the DAQ firmware output
         self.in_shmem_iface = inShmemIface(
             "delay_sync_iq", self.daq_shmem_control_path, read_timeout=5.0
         )
@@ -187,12 +170,7 @@ class KrakenReceiver():
 
     def get_iq_online(self):
         """
-        Obtain a new IQ data frame through the Ethernet IQ data or the shared memory interface.
-
-        Returns:
-        --------
-        frame_type : int
-            Type of the frame received.
+        This function obtains a new IQ data frame through the Ethernet IQ data or the shared memory interface
         """
 
         active_buff_index = self.in_shmem_iface.wait_buff_free()
@@ -230,10 +208,7 @@ class KrakenReceiver():
         return self.iq_header.frame_type
 
     def apply_filter(self):
-        """
-        Apply the configured filter to the IQ samples.
-
-        """
+        
         if self.f_type == 'none': 
             pass
         elif self.f_type == 'LTI':
@@ -243,7 +218,36 @@ class KrakenReceiver():
         elif self.f_type == 'FIR':
             self.iq_samples = signal.lfilter(self.filter, 1.0, self.iq_samples)
 
-    def music(self):
+
+    def music(self, index = [0, None]):
+        """
+        Performs Direction of Arrival (DOA) estimation using the MEM algorithm.
+
+        Returns:
+        numpy.ndarray
+            Array of estimated DOA angles in degrees.
+        """
+        
+        buffer = self.iq_samples[index[0]:index[1]]
+        x = self.x[index[0]:index[1]]
+        y = self.y[index[0]:index[1]]
+        buffer_dim = len(x)
+
+        # print(f'buffer_dim = {buffer_dim}')
+        #print(f' x = {x}')
+        #smoothed_buffer = self.spatial_smoothing_rewrite(2, 'forward-backward')
+        #spatial_corr_matrix = np.dot(smoothed_buffer, smoothed_buffer.conj().T)
+        spatial_corr_matrix = de.spatial_correlation_matrix(buffer, self.num_samples)
+        spatial_corr_matrix = de.forward_backward_avg(spatial_corr_matrix)
+        # scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
+        scanning_vectors = de.gen_scanning_vectors(buffer_dim, x, y, np.arange(-self.detection_range/2 -90, self.detection_range/2 -90))
+        sig_dim = 1 #de.infer_signal_dimension(spatial_corr_matrix)
+        doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, sig_dim)
+        #print(f'doa_max = {np.argmax(doa)}')
+        
+        return doa
+
+    def music_old(self):
         """
         Performs Direction of Arrival (DOA) estimation using the MEM algorithm.
 
@@ -259,10 +263,6 @@ class KrakenReceiver():
         return doa
 
     def record_samples(self):
-        """
-        Record IQ samples to an HDF5 file.
-
-        """
         if self.file:
             with h5py.File(self.file, 'a') as hf:
                 # Check if the dataset exists
@@ -347,6 +347,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
 
         self.create_polar_grid()
         self.doa_curve = None  # Initialize doa_curve to None
+        self.doa_curve_2 = None  # Initialize doa_curve to None
 
     def create_polar_grid(self):
         """
@@ -381,7 +382,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             text_item.setPos(1.1 * np.cos(angle), 1.1 * np.sin(angle))
             self.doa_plot.addItem(text_item)
 
-    def plot_doa_circle(self, doa_data):
+    def plot_doa_circle(self, doa_data, doa_data_2):
         """
         Plots the direction of arrival (DOA) circle based on provided DOA data.
         
@@ -391,19 +392,58 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         """
         rad_limit = np.radians(kraken.detection_range)
         
-        angles = np.linspace(0, rad_limit, len(doa_data))
+        cal = 0 #np.radians(10)
+        cal_2 = 0 # np.radians(-7)
+        
+        angles = np.linspace(0 + cal, rad_limit + cal, len(doa_data))
+        angles_2 = np.linspace(0 + cal_2, rad_limit + cal_2, len(doa_data))
+        
         x_values = doa_data * np.cos(angles)
         y_values = doa_data * np.sin(angles)
+        x_values_2 = doa_data_2 * np.cos(angles_2)
+        y_values_2 = doa_data_2 * np.sin(angles_2)
 
         #Close the polar plot loop
         x_values = np.append(x_values, [0])
         y_values = np.append(y_values, [0])
+        x_values_2 = np.append(x_values_2, [0])
+        y_values_2 = np.append(y_values_2, [0])
 
         if self.doa_curve is not None:
             self.doa_plot.removeItem(self.doa_curve)
+        if self.doa_curve_2 is not None:
+            self.doa_plot.removeItem(self.doa_curve_2)
 
         self.doa_curve = self.doa_plot.plot(x_values, y_values, pen=pg.mkPen(pg.mkColor(70,220,0), width=2), 
                                             fillLevel=0, brush=(255, 255, 0, 50))
+
+        self.doa_curve_2 = self.doa_plot.plot(x_values_2, y_values_2, pen=pg.mkPen(pg.mkColor(255,0,0), width=2), 
+                                            fillLevel=0, brush=(255, 255, 0, 50))
+
+    import numpy as np
+
+    def find_intersection(self, p1_start, angle1, p2_start, angle2):
+        
+        p1_start = np.asarray(p1_start)
+        p2_start = np.asarray(p2_start) 
+        
+        # Convert angles (in degrees) to direction vectors
+        r = np.array([np.sin(np.radians(angle1)), np.cos(np.radians(angle1))])
+        s = np.array([np.sin(np.radians(angle2)), np.cos(np.radians(angle2))])
+        
+        p = p1_start
+        q = p2_start
+        
+        # Calculate the cross products
+        cross_r_s = np.cross(r, s)
+        if cross_r_s == 0:
+            raise ValueError("Lines are parallel and do not intersect.")
+        
+        t = np.cross(q - p, s) / cross_r_s
+        
+        # Calculate the intersection point
+        intersection = p + t * r
+        return intersection
 
 
     def update_plots(self):
@@ -422,6 +462,8 @@ class RealTimePlotter(QtWidgets.QMainWindow):
 
             doa_data = kraken.music()
             doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
+            doa_data_2 = kraken.music()
+            doa_data_2 = np.divide(np.abs(doa_data_2), np.max(np.abs(doa_data_2)))
                 
             freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.daq_sample_rate)  
             ant0 = np.abs(fft(kraken.iq_samples[0]))
@@ -430,7 +472,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             ant3 = np.abs(fft(kraken.iq_samples[3]))
             ant4 = np.abs(fft(kraken.iq_samples[4]))  
                 
-            self.plot_doa_circle(doa_data)
+            self.plot_doa_circle(doa_data, doa_data_2)
             self.fft_curve_0.setData(freqs, ant0)
             self.fft_curve_1.setData(freqs, ant1)
             self.fft_curve_2.setData(freqs, ant2)
@@ -438,7 +480,17 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             self.fft_curve_4.setData(freqs, ant4)
             self.doa_cartesian_curve.setData(np.linspace(0, len(doa_data), len(doa_data)), doa_data)
 
-            print(np.argmax(doa_data) - 90) 
+
+            ang_1 = np.argmax(doa_data) -87 #+7
+            ang_2 = np.argmax(doa_data_2) -87 #-10
+            #point = self.find_intersection([-0.175, 0], ang_1, [0.175, 0], ang_2)
+            #distance = np.sqrt(point[0]**2 + point[1]**2)
+            print(f'ang_1 = {ang_1} degrees') 
+            print(f'ang_2 = {ang_2} degrees')
+            # print(f'doa_1 = {np.argmax(doa_data) - 90} degrees') 
+            # print(f'doa_2 = {np.argmax(doa_data_2) - 90} degrees')
+            # print(f'point of intersection = {point}') 
+            # print(f'distance = {distance} meters')
 
         elif frame_type == 1:
             print("Received Dummy frame")
