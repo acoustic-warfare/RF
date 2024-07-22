@@ -29,16 +29,5 @@ if ! [ -x "$(command -v docker)" ]; then
     esac
 fi
 
-#--privileged \     -v $(pwd):/usr/src/app \  --user=$(id -u $USER) \
-
- #--cap-add=SYS_ADMIN \
- #   --cap-add=SYS_MODULE \
- #   --cap-add=SYS_RESOURCE \
-
 # Starting the container
-docker run \
-    $RT_ARGS \
-    -e DISPLAY=$DISPLAY  \
-    -v /tmp/.X11-unix:/tmp/.X11-unix \
-    --name kraken-app \
-    kraken
+docker run --privileged -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix --name kraken-app kraken
