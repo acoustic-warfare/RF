@@ -3,7 +3,6 @@ import numpy as np
 import h5py
 import sys
 import socket
-import cv2
 import scipy.signal as signal
 import direction_estimation as de
 import pyqtgraph as pg  
@@ -48,9 +47,10 @@ class KrakenReceiver():
         self.waraps = waraps
 
         #Shared memory setup
-        root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
-        daq_path = os.path.join(os.path.dirname(root_path), "RF/src/kraken/heimdall_daq_fw")
-        self.daq_shmem_control_path = os.path.join(os.path.join(daq_path, "Firmware"), "_data_control/")
+        #root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+        #daq_path = os.path.join(os.path.dirname(root_path), "RF/src/kraken/heimdall_daq_fw")
+        #self.daq_shmem_control_path = os.path.join(os.path.join(daq_path, "Firmware"), "_data_control/")
+        self.daq_shmem_control_path = "heimdall_daq_fw/Firmware/_data_control/"
         self.init_data_iface()
 
         self.iq_samples = np.empty(0)
@@ -191,7 +191,7 @@ class KrakenReceiver():
             "delay_sync_iq", self.daq_shmem_control_path, read_timeout=5.0
         )
         if not self.in_shmem_iface.init_ok:
-            self.in_shmem_iface.destory_sm_iq_samples()
+            self.in_shmem_iface.destory_sm_buffer()
             raise RuntimeError("Shared Memory Init Failed")
         print("Successfully Initilized Shared Memory")
 

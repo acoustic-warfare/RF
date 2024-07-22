@@ -34,107 +34,107 @@ TERMINATE = 255
 SLEEP_TIME_BETWEEN_READ_ATTEMPTS = 0.01  # seconds
 
 
-class outShmemIface:
-    def __init__(self, shmem_name, shmem_size, drop_mode=False):
-        self.init_ok = True
-        logging.basicConfig(level=logging.INFO)
-        self.logger = logging.getLogger(__name__)
-        self.drop_mode = drop_mode
-        self.dropped_frame_cntr = 0
+# class outShmemIface:
+#     def __init__(self, shmem_name, shmem_size, drop_mode=False):
+#         self.init_ok = True
+#         logging.basicConfig(level=logging.INFO)
+#         self.logger = logging.getLogger(__name__)
+#         self.drop_mode = drop_mode
+#         self.dropped_frame_cntr = 0
 
-        self.shmem_name = shmem_name
-        self.buffer_free = [True, True]
+#         self.shmem_name = shmem_name
+#         self.buffer_free = [True, True]
 
-        self.memories = []
-        self.buffers = []
+#         self.memories = []
+#         self.buffers = []
 
-        # Try to remove shared memories if already exist
-        try:
-            shmem_A = shared_memory.SharedMemory(name=shmem_name + "_A", create=False, size=shmem_size)
-            shmem_A.close()
-            # shmem_A.unlink()
-            # shmem_A.unkink()
-        except FileNotFoundError as err:
-            self.logger.warning(f"Shared memory not exist: {err}")
-        try:
-            shmem_B = shared_memory.SharedMemory(name=shmem_name + "_B", create=False, size=shmem_size)
-            shmem_B.close()
-            # shmem_B.unlink()
-            # shmem_B.unkink()
-        except FileNotFoundError as err:
-            self.logger.warning(f"Shared memory not exist: {err}")
+#         # Try to remove shared memories if already exist
+#         try:
+#             shmem_A = shared_memory.SharedMemory(name=shmem_name + "_A", create=False, size=shmem_size)
+#             shmem_A.close()
+#             # shmem_A.unlink()
+#             # shmem_A.unkink()
+#         except FileNotFoundError as err:
+#             self.logger.warning(f"Shared memory not exist: {err}")
+#         try:
+#             shmem_B = shared_memory.SharedMemory(name=shmem_name + "_B", create=False, size=shmem_size)
+#             shmem_B.close()
+#             # shmem_B.unlink()
+#             # shmem_B.unkink()
+#         except FileNotFoundError as err:
+#             self.logger.warning(f"Shared memory not exist: {err}")
 
-        # Create the shared memories
-        self.memories.append(shared_memory.SharedMemory(name=shmem_name + "_A", create=True, size=shmem_size))
-        self.memories.append(shared_memory.SharedMemory(name=shmem_name + "_B", create=True, size=shmem_size))
-        self.buffers.append(np.ndarray((shmem_size,), dtype=np.uint8, buffer=self.memories[0].buf))
-        self.buffers.append(np.ndarray((shmem_size,), dtype=np.uint8, buffer=self.memories[1].buf))
+#         # Create the shared memories
+#         self.memories.append(shared_memory.SharedMemory(name=shmem_name + "_A", create=True, size=shmem_size))
+#         self.memories.append(shared_memory.SharedMemory(name=shmem_name + "_B", create=True, size=shmem_size))
+#         self.buffers.append(np.ndarray((shmem_size,), dtype=np.uint8, buffer=self.memories[0].buf))
+#         self.buffers.append(np.ndarray((shmem_size,), dtype=np.uint8, buffer=self.memories[1].buf))
 
-        # Opening control FIFOs
-        if self.drop_mode:
-            bw_fifo_flags = os.O_RDONLY | os.O_NONBLOCK
-        else:
-            bw_fifo_flags = os.O_RDONLY
-        try:
-            self.fw_ctr_fifo = os.open("_data_control/" + "fw_" + shmem_name, os.O_WRONLY)
-            self.bw_ctr_fifo = os.open("_data_control/" + "bw_" + shmem_name, bw_fifo_flags)
-        except OSError as err:
-            self.logger.critical(f"OS error: {err}")
-            self.logger.critical("Failed to open control fifos")
-            self.bw_ctr_fifo = None
-            self.fw_ctr_fifo = None
-            self.init_ok = False
+#         # Opening control FIFOs
+#         if self.drop_mode:
+#             bw_fifo_flags = os.O_RDONLY | os.O_NONBLOCK
+#         else:
+#             bw_fifo_flags = os.O_RDONLY
+#         try:
+#             self.fw_ctr_fifo = os.open("_data_control/" + "fw_" + shmem_name, os.O_WRONLY)
+#             self.bw_ctr_fifo = os.open("_data_control/" + "bw_" + shmem_name, bw_fifo_flags)
+#         except OSError as err:
+#             self.logger.critical(f"OS error: {err}")
+#             self.logger.critical("Failed to open control fifos")
+#             self.bw_ctr_fifo = None
+#             self.fw_ctr_fifo = None
+#             self.init_ok = False
 
-        # Send init ready signal
-        if self.init_ok:
-            os.write(self.fw_ctr_fifo, pack("B", INIT_READY))
+#         # Send init ready signal
+#         if self.init_ok:
+#             os.write(self.fw_ctr_fifo, pack("B", INIT_READY))
 
-    def send_ctr_buff_ready(self, active_buffer_index):
-        # Send buffer ready signal on the forward FIFO
-        if active_buffer_index == 0:
-            os.write(self.fw_ctr_fifo, pack("B", A_BUFF_READY))
-        elif active_buffer_index == 1:
-            os.write(self.fw_ctr_fifo, pack("B", B_BUFF_READY))
+#     def send_ctr_buff_ready(self, active_buffer_index):
+#         # Send buffer ready signal on the forward FIFO
+#         if active_buffer_index == 0:
+#             os.write(self.fw_ctr_fifo, pack("B", A_BUFF_READY))
+#         elif active_buffer_index == 1:
+#             os.write(self.fw_ctr_fifo, pack("B", B_BUFF_READY))
 
-        # Deassert buffer free flag
-        self.buffer_free[active_buffer_index] = False
+#         # Deassert buffer free flag
+#         self.buffer_free[active_buffer_index] = False
 
-    def send_ctr_terminate(self):
-        os.write(self.fw_ctr_fifo, pack("B", TERMINATE))
-        self.logger.info("Terminate signal sent")
+#     def send_ctr_terminate(self):
+#         os.write(self.fw_ctr_fifo, pack("B", TERMINATE))
+#         self.logger.info("Terminate signal sent")
 
-    def destory_sm_buffer(self):
-        for memory in self.memories:
-            memory.close()
-            # memory.unlink()
+#     def destory_sm_buffer(self):
+#         for memory in self.memories:
+#             memory.close()
+#             # memory.unlink()
 
-        if self.fw_ctr_fifo is not None:
-            os.close(self.fw_ctr_fifo)
+#         if self.fw_ctr_fifo is not None:
+#             os.close(self.fw_ctr_fifo)
 
-        if self.bw_ctr_fifo is not None:
-            os.close(self.bw_ctr_fifo)
+#         if self.bw_ctr_fifo is not None:
+#             os.close(self.bw_ctr_fifo)
 
-    def wait_buff_free(self):
-        if self.buffer_free[0]:
-            return 0
-        elif self.buffer_free[1]:
-            return 1
-        else:
-            try:
-                buffer = os.read(self.bw_ctr_fifo, 1)
-                signal = unpack("B", buffer)[0]
+#     def wait_buff_free(self):
+#         if self.buffer_free[0]:
+#             return 0
+#         elif self.buffer_free[1]:
+#             return 1
+#         else:
+#             try:
+#                 buffer = os.read(self.bw_ctr_fifo, 1)
+#                 signal = unpack("B", buffer)[0]
 
-                if signal == A_BUFF_READY:
-                    self.buffer_free[0] = True
-                    return 0
-                if signal == B_BUFF_READY:
-                    self.buffer_free[1] = True
-                    return 1
-            except BlockingIOError as err:
-                self.dropped_frame_cntr += 1
-                self.logger.warning(f"Dropping frame.. Total: [{self.dropped_frame_cntr}] ")
-                self.logger.warning(f"Due to: {err}")
-        return -1
+#                 if signal == A_BUFF_READY:
+#                     self.buffer_free[0] = True
+#                     return 0
+#                 if signal == B_BUFF_READY:
+#                     self.buffer_free[1] = True
+#                     return 1
+#             except BlockingIOError as err:
+#                 self.dropped_frame_cntr += 1
+#                 self.logger.warning(f"Dropping frame.. Total: [{self.dropped_frame_cntr}] ")
+#                 self.logger.warning(f"Due to: {err}")
+#         return -1
 
 
 class inShmemIface:
@@ -150,7 +150,9 @@ class inShmemIface:
         fw_fifo_flags = os.O_RDONLY | os.O_NONBLOCK if read_timeout else os.O_RDONLY
 
         try:
+            print("trace 0")
             self.fw_ctr_fifo = os.open(ctr_fifo_path + "fw_" + shmem_name, fw_fifo_flags)
+            print("trace 1")
             self.bw_ctr_fifo = os.open(ctr_fifo_path + "bw_" + shmem_name, os.O_WRONLY)
         except OSError as err:
             self.logger.critical("OS error: {0}".format(err))
