@@ -7,7 +7,10 @@ import scipy.signal as signal
 import direction_estimation as de
 import pyqtgraph as pg  
 import _thread
+import time
+import logging
 import gi
+#os.environ['GST_DEBUG'] = "3" #Uncomment to enable GST debug logs
 gi.require_version('Gst', '1.0')
 gi.require_version('GLib', '2.0')
 from gi.repository import Gst, GLib
@@ -20,7 +23,7 @@ from config import read_kraken_config
 from datetime import datetime
 from shmemIface import inShmemIface
 from iq_header import IQHeader
-import time
+
 
 
 class KrakenReceiver():
@@ -29,6 +32,14 @@ class KrakenReceiver():
 
     """
     def __init__(self):
+
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            filename='kraken.log',
+            filemode='w'  
+        )
+        self.logger = logging.getLogger(__name__)
 
         center_freq, num_samples, sample_rate, antenna_distance, x, y, f_type, detection_range, waraps = read_kraken_config()
         self.daq_center_freq = center_freq  # MHz
@@ -101,7 +112,7 @@ class KrakenReceiver():
         try:
             _thread.start_new_thread(self.ctr_iface_communication, (msg_bytes,))
         except:
-            RuntimeError()
+            RuntimeError("Control interface init failed")
                 
     def set_center_freq(self, center_freq):
         """
@@ -118,11 +129,10 @@ class KrakenReceiver():
         freq_bytes = pack("Q", int(center_freq))
         msg_bytes = cmd.encode() + freq_bytes + bytearray(116)
         try:
-            print("sending message")
+            self.logger.info("Sending center frequency configuration message")
             _thread.start_new_thread(self.ctr_iface_communication, (msg_bytes,))
-            print("message_sent")
         except:
-            RuntimeError("Failed sending message to HWC")
+            self.logger.error("Failed sending message to HWC")
 
 
     def set_if_gain(self, gain):
@@ -145,9 +155,10 @@ class KrakenReceiver():
         gain_bytes = pack("I" * self.num_antennas, *gain_list)
         msg_bytes = cmd.encode() + gain_bytes + bytearray(128 - (self.num_antennas + 1) * 4)
         try:
+            self.logger.info("Sending gain configuration message")
             _thread.start_new_thread(self.ctr_iface_communication, (msg_bytes,))
         except:
-            RuntimeError("Failed sending message to HWC")
+            self.logger.error("Failed sending message to HWC")
             
     def ctr_iface_communication(self, msg_bytes):
         """
@@ -160,21 +171,21 @@ class KrakenReceiver():
             :type:  msg: Byte array
         """
         self.ctr_iface_thread_lock.acquire()
-        print("Sending control message")
+        self.logger.info("Sending hwc message")
         self.ctr_iface_socket.send(msg_bytes)
 
         # Waiting for the command to take effect
         reply_msg_bytes = self.ctr_iface_socket.recv(128)
 
-        print("Control interface communication finished")
+        self.logger.info("Control interface communication finished")
         self.ctr_iface_thread_lock.release()
 
         status = reply_msg_bytes[0:4].decode()
         if status == "FNSD":
-            print("Reconfiguration succesfully finished")
+            self.logger.info("Reconfiguration succesfully finished")
             
         else:
-            raise RuntimeError(f"Failed to set the requested parameter, reply: {status}")
+            self.logger.error(f"Failed to set the requested parameter, reply: {status}")
             
 
     def init_data_iface(self):
@@ -186,8 +197,9 @@ class KrakenReceiver():
         )
         if not self.in_shmem_iface.init_ok:
             self.in_shmem_iface.destory_sm_buffer()
-            raise RuntimeError("Shared Memory Init Failed")
-        print("Successfully Initilized Shared Memory")
+            self.logger.error("Shared Memory Init Failed")
+        else:
+            self.logger.info("Successfully Initilized Shared Memory")
 
     def get_iq_online(self):
         """
@@ -204,7 +216,7 @@ class KrakenReceiver():
             # If we cannot get the new IQ frame then we zero the stored IQ header
             self.iq_header = IQHeader()
             self.iq_samples = np.empty(0)
-            raise RuntimeError(f"Terminating.., signal: {active_buff_index}")
+            self.logger.critical(f"Terminating.., signal: {active_buff_index}")
 
         buffer = self.in_shmem_iface.buffers[active_buff_index]
 
@@ -264,7 +276,7 @@ class KrakenReceiver():
 
     def record_samples(self):
         """
-        Record IQ samples to an HDF5 file.
+        Record IQ samples to a HDF5 file.
 
         """
         if self.file:
@@ -310,10 +322,10 @@ class RealTimePlotter(QtWidgets.QMainWindow):
 
         if kraken.waraps:
             Gst.init(None)
-            print("GStreamer initialized successfully")
+            kraken.logger.info("GStreamer initialized successfully")
 
             self.pipeline = Gst.parse_launch(
-                " appsrc name=doa is_live=true block=true format=GST_FORMAT_TIME caps=video/x-raw,width=1280,format=RGB,height=720,framerate=30/1 "
+                " appsrc name=doa is_live=true block=true format=GST_FORMAT_TIME caps=video/x-raw,width=1280,format=RGB,height=720 "
                 " ! videoconvert ! x264enc tune=zerolatency speed-preset=superfast bitrate=2500"
                 " ! queue ! flvmux streamable=true ! rtmp2sink location=rtmp://ome.waraps.org/app/KrakenSDR"
                 )
@@ -322,6 +334,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             self.start_time = time.time()
             ret = self.pipeline.set_state(Gst.State.PLAYING)
             if ret == Gst.StateChangeReturn.FAILURE:
+                kraken.logger.critical("Unable to set the pipeline to the playing state")
                 raise RuntimeError("Unable to set the pipeline to the playing state.")
                 
 
@@ -348,7 +361,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         buf.duration = Gst.SECOND // 30
         buf.fill(0, data)
         self.appsrc.emit('push-buffer', buf)
-        print("Frame sent")
+        kraken.logger.info("Sent frame to waraps")
         return True
 
     def initUI(self):
@@ -488,15 +501,15 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             print(np.argmax(doa_data) - 90) 
 
         elif frame_type == 1:
-            print("Received Dummy frame")
+            kraken.logger.info("Received Dummy frame")
         elif frame_type == 2:
-            print("Received Ramp frame")
+            kraken.logger.info("Received Ramp frame")
         elif frame_type == 3:
-            print("Received Calibration frame")
+            kraken.logger.info("Received Calibration frame")
         elif frame_type == 4:
-            print("Receiver Trigger Word frame")
+            kraken.logger.info("Receiver Trigger Word frame")
         else:
-            print("Received Empty frame")
+            kraken.logger.info("Received Empty frame")
 
 if __name__ == "__main__":
     kraken = KrakenReceiver()
