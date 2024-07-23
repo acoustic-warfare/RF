@@ -8,9 +8,6 @@ import direction_estimation as de
 import pyqtgraph as pg  
 import _thread
 import gi
-os.environ['GST_PLUGIN_PATH'] = "/usr/lib/x86_64-linux-gnu/gstreamer-1.0"
-os.environ['LD_LIBRARY_PATH'] = '/usr/lib/x86_64-linux-gnu'
-os.environ["GST_DEBUG"] = "3"
 gi.require_version('Gst', '1.0')
 gi.require_version('GLib', '2.0')
 from gi.repository import Gst, GLib
@@ -47,9 +44,6 @@ class KrakenReceiver():
         self.waraps = waraps
 
         #Shared memory setup
-        #root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
-        #daq_path = os.path.join(os.path.dirname(root_path), "RF/src/kraken/heimdall_daq_fw")
-        #self.daq_shmem_control_path = os.path.join(os.path.join(daq_path, "Firmware"), "_data_control/")
         self.daq_shmem_control_path = "heimdall_daq_fw/Firmware/_data_control/"
         self.init_data_iface()
 
@@ -326,7 +320,10 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             
             self.appsrc = self.pipeline.get_by_name('doa')
             self.start_time = time.time()
-            self.pipeline.set_state(Gst.State.PLAYING)
+            ret = self.pipeline.set_state(Gst.State.PLAYING)
+            if ret == Gst.StateChangeReturn.FAILURE:
+                raise RuntimeError("Unable to set the pipeline to the playing state.")
+                
 
     def grab_frame(self):
         pixmap = QtGui.QPixmap(self.size())
@@ -351,6 +348,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         buf.duration = Gst.SECOND // 30
         buf.fill(0, data)
         self.appsrc.emit('push-buffer', buf)
+        print("Frame sent")
         return True
 
     def initUI(self):

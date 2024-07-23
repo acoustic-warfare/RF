@@ -17,6 +17,10 @@ dependencies:
   - pycairo
   - opencv 
   - gstreamer
+  - gst-plugins-good
+  - gst-plugins-bad
+  - gst-plugins-ugly
+  - gst-libav
   - gst-plugins-base            
   - h5py
   - libopencv

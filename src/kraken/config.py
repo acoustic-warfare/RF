@@ -94,6 +94,6 @@ y = np.array([0, 0, 0, 0, 0])
 x = np.array([-2, -1, 0, 1, 2])
 antenna_distance = 0.175
 detection_range = 180
-waraps = False
+waraps = True
 
 kraken_config(center_freq, num_samples, sample_rate, antenna_distance, x, y, 'FIR', detection_range, waraps)
