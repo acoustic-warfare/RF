@@ -92,7 +92,7 @@ if __name__ == '__main__':
     # samples = np.sin(2*np.pi*f*t) + 0.2*np.random.randn(len(t))
     live_spectrogram = LiveSpectrogram(segment_size, overlap, window_function, frames, num_samples, samp_rate, sdr, rx_lo)
     ani = animation.FuncAnimation(live_spectrogram.fig, live_spectrogram.update, 
-                                  frames=range(num_samples // overlap - frames), interval=1000, blit=True
+                                  frames=range(num_samples // overlap - frames), interval=100, blit=True
     )
     plt.show()
 
