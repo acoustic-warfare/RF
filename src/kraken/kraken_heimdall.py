@@ -41,15 +41,19 @@ class KrakenReceiver():
         )
         self.logger = logging.getLogger(__name__)
 
-        center_freq, num_samples, sample_rate, antenna_distance, x, y, f_type, detection_range, waraps = read_kraken_config()
+        center_freq, num_samples, sample_rate, antenna_distance, x, y, array_type, f_type, waraps = read_kraken_config()
         self.daq_center_freq = center_freq  # MHz
         self.num_samples = num_samples
         self.daq_sample_rate = sample_rate
         self.x = x * antenna_distance
         self.y = y * antenna_distance
+        self.array_type = array_type
         self.num_antennas = x.size
         self.f_type = f_type
-        self.detection_range = detection_range
+        if array_type == 'ULA':
+            self.detection_range = 180
+        else:
+            self.detection_range = 360
         self.thetas = np.arange(-self.detection_range/2 - 90, self.detection_range/2 - 90)
         self.scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, self.thetas)
         self.waraps = waraps
@@ -268,7 +272,8 @@ class KrakenReceiver():
             Array of estimated DOA angles in degrees.
         """
         spatial_corr_matrix = de.spatial_correlation_matrix(self.iq_samples, self.num_samples)
-        spatial_corr_matrix = de.forward_backward_avg(spatial_corr_matrix)
+        if self.array_type == 'ULA':
+            spatial_corr_matrix = de.forward_backward_avg(spatial_corr_matrix)
         sig_dim = de.infer_signal_dimension(spatial_corr_matrix)
         doa = de.DOA_MUSIC(spatial_corr_matrix, self.scanning_vectors, sig_dim)
 
@@ -446,8 +451,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         Plots the direction of arrival (DOA) circle based on provided DOA data.
         
         Args:
-        - doa_data (numpy.ndarray): Array of DOA data values, typically normalized between 0 and 1.
-        If len(doa_data) == 180, the data is mirrored to cover 360 degrees.
+        - doa_data (numpy.ndarray): Array of DOA data values, normalized between 0 and 1.
         """
         rad_limit = np.radians(kraken.detection_range)
         
@@ -519,3 +523,8 @@ if __name__ == "__main__":
     if kraken.waraps:
         GLib.timeout_add(1000 // 30, plotter.send_frame)
     sys.exit(app.exec_())
+
+#1. Start waraps mqtt client
+#2. push and receive messages from the mqtt client
+    # Add handling for the received message
+#3. mqtt client receives and sends messages from waraps

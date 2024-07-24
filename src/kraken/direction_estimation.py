@@ -25,8 +25,6 @@ def spatial_correlation_matrix(samples, num_samples):
     samples = np.ascontiguousarray(samples)
     spatial_corr_matrix = np.dot(samples, samples.conj().T).astype(np.complex64)
     spatial_corr_matrix = np.divide(spatial_corr_matrix, num_samples)
-    spatial_corr_matrix = np.dot(samples, samples.conj().T)
-    spatial_corr_matrix = np.divide(spatial_corr_matrix, num_samples).astype(np.complex64)
     return spatial_corr_matrix
 
 @njit(fastmath=True, cache=True)
@@ -129,7 +127,6 @@ def gen_scanning_vectors(M, x, y, thetas):
         :type M: int
         :type x: 1D numpy array
         :type y: 1D numpy array
-        :type R: float
         :type thetas: 1D numpy array
             
     Return values:

@@ -1,7 +1,8 @@
 import configparser
 import numpy as np
 
-def kraken_config(center_freq, num_samples, sample_rate, antenna_distance, x, y, f_type, detection_range, waraps):
+def kraken_config(center_freq, num_samples, sample_rate, antenna_distance, 
+                  x, y, array_type, f_type, waraps):
     """
     Configures and writes the DAQ (Data Acquisition) chain settings to an INI file.
 
@@ -21,8 +22,6 @@ def kraken_config(center_freq, num_samples, sample_rate, antenna_distance, x, y,
         List of y-coordinates for the antenna array elements.
     f_type : str
         Type of the function used in processing (e.g., 'FFT', 'MUSIC').
-    detection_range : int
-        Range of angles to scan for detection, in degrees.
 
     """
     config = configparser.ConfigParser()
@@ -33,11 +32,11 @@ def kraken_config(center_freq, num_samples, sample_rate, antenna_distance, x, y,
     config.set('daq', 'gain', str(gain))
     config.set('daq', 'daq_buffer_size', str(num_samples))
     config.set('pre_processing', 'cpi_size', str(num_samples))
-    config.set('variables', 'antenna_distance', str(antenna_distance))
     config.set('variables', 'f_type', f_type)
-    config.set('variables', 'detection_range', str(detection_range))
     config.set('variables', 'x', ','.join(map(str, x)))
     config.set('variables', 'y', ','.join(map(str, y)))
+    config.set('variables', 'antenna_distance', str(antenna_distance))
+    config.set('variables', 'array_type', array_type)
     config.set('variables', 'waraps', str(waraps))
 
     with open('heimdall_daq_fw/Firmware/daq_chain_config.ini', 'w') as configfile:
@@ -63,8 +62,6 @@ def read_kraken_config():
         Array of y-coordinates for the antenna array elements.
     f_type : str
         Type of the function used in processing (e.g., 'FFT', 'MUSIC').
-    detection_range : int
-        Range of angles to scan for detection, in degrees.
     """
     config = configparser.ConfigParser()
     config.read('heimdall_daq_fw/Firmware/daq_chain_config.ini')
@@ -73,6 +70,7 @@ def read_kraken_config():
     sample_rate = config.getint('daq', 'sample_rate')
     num_samples = config.getint('pre_processing', 'cpi_size')
     antenna_distance = config.getfloat('variables','antenna_distance')
+    array_type = config.get('variables', 'array_type')
 
     x_str = config.get('variables', 'x')
     x = np.fromstring(x_str, sep=',')
@@ -80,20 +78,29 @@ def read_kraken_config():
     y = np.fromstring(y_str, sep=',')
     
     f_type = config.get('variables', 'f_type')
-    detection_range = config.getint('variables', 'detection_range')
     waraps = config.getboolean('variables', 'waraps')
     
-    return center_freq, num_samples, sample_rate, antenna_distance, x, y, f_type, detection_range, waraps
+    return center_freq, num_samples, sample_rate, antenna_distance, x, y, array_type, f_type, waraps
 
 num_samples = 1024*64 # 1048576 # 
 sample_rate = int(2.048e6)
-center_freq = int(433.9e6)
+center_freq = int(434.4e6)
 gain = 40
-# Linear Setupself.num_antennas = 0  
+#Linear Setup
 y = np.array([0, 0, 0, 0, 0])
 x = np.array([-2, -1, 0, 1, 2])
 antenna_distance = 0.175
-detection_range = 180
+# Circular setup
+# ant0 = [1,    0]
+# ant1 = [0.3090,    0.9511]
+# ant2 = [-0.8090,    0.5878]
+# ant3 = [-0.8090,   -0.5878]
+# ant4 = [0.3090,   -0.9511]
+# y = np.array([ant0[1], ant1[1], ant2[1], ant3[1], ant4[1]])
+# x = np.array([ant0[0], ant1[0], ant2[0], ant3[0], ant4[0]])
+# antenna_distance =  0.175
+# antenna_distance = antenna_distance / 2.0 / np.sin(36.0*np.pi/180.0)
+
 waraps = True
 
-kraken_config(center_freq, num_samples, sample_rate, antenna_distance, x, y, 'FIR', detection_range, waraps)
+kraken_config(center_freq, num_samples, sample_rate, antenna_distance, x, y, 'ULA', 'FIR', waraps)
