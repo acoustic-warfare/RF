@@ -215,9 +215,12 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.waterfall.setImage(spec.T)
         self.waterfall.setColorMap(colorMap='viridis')
         tr = QtGui.QTransform()  # prepare ImageItem transformation:
-        xscale = (30/260)*1e6
-        tr.scale(xscale, 8)
+        freq_scale= (30e6)/260
+        time_scale= (-num_samples/samp_rate)/260
+        tr.scale(freq_scale, time_scale)
         self.waterfall.setTransform(tr) # assign transform
+        self.waterfall.setPos(rx_lo-(bandwidth/2), num_samples/samp_rate)
+        self.p1.invertY()
 
     @QtCore.pyqtSlot(np.ndarray)
     def update_plot(self, spec):
