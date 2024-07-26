@@ -1,2 +1,5 @@
 .venv
 .vscode
+__pycache__
+src/kraken/recordings
+src/kraken/kraken.log

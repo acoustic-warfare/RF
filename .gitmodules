@@ -1,0 +1,3 @@
+[submodule "src/kraken/heimdall_daq_fw"]
+    path = src/kraken/heimdall_daq_fw
+    url = https://github.com/acoustic-warfare/heimdall_daq_fw.git
