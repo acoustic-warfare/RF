@@ -23,7 +23,7 @@ class LiveSpectrogram():
 
         self.fig, self.ax = plt.subplots()
     
-        self.im = self.ax.imshow(self.spectrogram, aspect='auto', extent = [self.rx_lo-bandwidth/2, self.rx_lo+bandwidth/2, num_samples/self.rx_lo, 0], cmap = "viridis", vmin = 30, vmax = 70, origin='lower')
+        self.im = self.ax.imshow(self.spectrogram, aspect='auto', extent = [self.rx_lo-bandwidth/2, self.rx_lo+bandwidth/2, num_samples/sample_rate, 0], cmap = "viridis", vmin = 40, vmax = 80, origin='lower', interpolation='gaussian')
         
         self.fig.colorbar(self.im, ax=self.ax, label='Magnitude (dB)')
         self.ax.set_xlabel('Frequency (kHz)')
@@ -43,11 +43,11 @@ class LiveSpectrogram():
     
     def update(self, frame):
         samples = self.sdr.rx()
-        self.big_spectrogram.append(self.creating_spectrogram(samples))
+        self.big_spectrogram.extend(self.creating_spectrogram(samples))
         if (len(self.big_spectrogram) > segment_size):
-            self.spectrogram = np.array(self.big_spectrogram[self.increment:(self.increment + segment_size)])[0]
+            self.spectrogram = np.array(self.big_spectrogram[self.increment:(self.increment + segment_size)])
         else:
-            self.spectrogram = np.array(self.big_spectrogram[self.increment:(self.increment + segment_size)])[0]
+            self.spectrogram = np.array(self.big_spectrogram[self.increment:(self.increment + segment_size)])
 
 
         
@@ -58,14 +58,12 @@ class LiveSpectrogram():
         return self.im,
 
 if __name__ == '__main__':
-   
     #Creating Pluto
     samp_rate = 30e6    # must be <=30.72 MHz if both channels are enabled
     num_samples = 32768
-    rx_lo = 105e6
+    rx_lo = 433e6
     rx_mode = "manual"  # can be "manual" or "slow_attack"
-    rx_gain0 = 40
-    fft_size = 256 
+    rx_gain0 = 70
     bandwidth = int(30e6)
 
     '''Create Radio'''
@@ -82,8 +80,8 @@ if __name__ == '__main__':
     sdr.rx_buffer_size = int(num_samples)
 
 
-    segment_size = 256
-    overlap = 128
+    segment_size = 512
+    overlap = 256
     window_function = np.hanning(segment_size)
     frames = 60
     # sample_rate = 1e6
@@ -92,7 +90,7 @@ if __name__ == '__main__':
     # samples = np.sin(2*np.pi*f*t) + 0.2*np.random.randn(len(t))
     live_spectrogram = LiveSpectrogram(segment_size, overlap, window_function, frames, num_samples, samp_rate, sdr, rx_lo)
     ani = animation.FuncAnimation(live_spectrogram.fig, live_spectrogram.update, 
-                                  frames=range(num_samples // overlap - frames), interval=100, blit=True
+                                  frames=range(num_samples // overlap - frames), interval=50, blit=True
     )
     plt.show()
 

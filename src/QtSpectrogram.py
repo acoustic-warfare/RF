@@ -9,7 +9,7 @@ from pyqtgraph.Qt import QtGui
 class LiveSpectrogram(QtCore.QObject):
     data_ready = QtCore.pyqtSignal(np.ndarray)
 
-    """
+    '''
     Represents the backend of a waterfall plot.
 
     Attributes:
@@ -28,7 +28,7 @@ class LiveSpectrogram(QtCore.QObject):
     window : numpy.ndarray
         Window contains the data used in the spectrogram.
 
-    """
+    '''
 
     def __init__(self , frames, num_samples, sample_rate, sdr, rx_lo, bandwidth):
         super().__init__()
@@ -54,7 +54,7 @@ class LiveSpectrogram(QtCore.QObject):
 
         numpy.ndarray
             A segement containing the amplitudes of the sample in dB.
-
+            
         '''
 
         segment = 10*np.log10(np.abs(np.fft.fftshift(np.fft.fft(sample))**2))
@@ -62,7 +62,10 @@ class LiveSpectrogram(QtCore.QObject):
     
     def update_spectrogram(self):
 
-        '''Updates the spectrogram. The oldest line of the spectrogram(window) is updated with a new one by using create_spectrogram and data.'''
+        '''
+        Updates the spectrogram. The oldest line of the spectrogram(window) is updated with a new one by using create_spectrogram and data.
+        
+        '''
 
         data = self.sdr.rx()
         self.window = np.vstack([self.window[1:], (self.create_segment(data))])
@@ -78,6 +81,7 @@ class LiveSpectrogram(QtCore.QObject):
         Returns:
         numpy.ndarray
             A full spectrogram.
+        
         '''
 
         spectrogram = np.zeros((self.frames, self.num_samples))
@@ -98,6 +102,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
 
         '''
         Initiliazes the RealTimePlotter
+        
         '''
 
         super().__init__()
@@ -105,8 +110,10 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.initUI()
 
     def initUI(self):
+
         '''
         Sets up the user interface for the waterfall plot.
+        
         '''
 
         self.setWindowTitle('Waterfall Plot')
@@ -126,7 +133,6 @@ class RealTimePlotter(QtWidgets.QMainWindow):
 
         # Add labels to the axis
         self.p1.setLabel('left', "Time", units='s')
-        # If you include the units, Pyqtgraph automatically scales the axis and adjusts the SI prefix (in this case kHz)
         self.p1.setLabel('bottom', "Frequency", units='Hz')
 
         # Rescales the x and y axis from pixels to frequency and time
@@ -168,9 +174,9 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         Updates the waterfall plot. 
 
         Parameters:
-
         spectrogram : numpy.ndarray
             spectrogram contains segments. The oldest segment in the spectrogram has been updated with a new one. 
+        
         '''
         self.waterfall.setImage(spectrogram.T)
 
