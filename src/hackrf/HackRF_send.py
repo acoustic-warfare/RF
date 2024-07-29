@@ -21,7 +21,7 @@ for freqRange in freqs: print(freqRange)
 
 #apply settings
 sdr.setSampleRate(SOAPY_SDR_TX, 0, 2e6)
-sdr.setFrequency(SOAPY_SDR_TX, 0, 433e6)
+sdr.setFrequency(SOAPY_SDR_TX, 0, 432.5e6)
 
 #setup a stream (complex floats)
 txStream = sdr.setupStream(SOAPY_SDR_TX, SOAPY_SDR_CF32)
@@ -32,8 +32,11 @@ fs = int(sdr.getSampleRate(SOAPY_SDR_TX, 0))
 N = 2**16
 ts = 1 / float(fs)
 t = np.arange(0, N * ts, ts)
-i0 = np.cos(2 * np.pi * t * 200e3) * 2 ** 14
-q0 = np.sin(2 * np.pi * t * 200e3) * 2 ** 14
+
+gain = 1
+
+i0 = gain * np.cos(2 * np.pi * t * 200e3) * 2 ** 14
+q0 = gain * np.sin(2 * np.pi * t * 200e3) * 2 ** 14
 iq0 = np.array(i0 + 1j * q0, np.complex64)
 
 #create a re-usable buffer for rx samples
