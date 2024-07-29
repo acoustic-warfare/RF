@@ -834,7 +834,7 @@ if __name__ == '__main__':
     center_freq = 434.4e6
     bandwidth =  2e5 
     gain = 40
-    circular = 0
+    circular = 1
     
     if circular:
         # Circular setup
@@ -845,8 +845,9 @@ if __name__ == '__main__':
         ant4 = [0.3090,   -0.9511]
         y = np.array([ant0[1], ant1[1], ant2[1], ant3[1], ant4[1]])
         x = np.array([ant0[0], ant1[0], ant2[0], ant3[0], ant4[0]])
-        antenna_distance =  0.175 
+        antenna_distance =  0.35 
         antenna_distance = antenna_distance / 2.0 / np.sin(36.0*np.pi/180.0) # distance = 0.175 -> radius = 0.148857 
+        print(f'antenna_distance = {antenna_distance}')
     
     else:
         # Linear Setup
@@ -859,6 +860,9 @@ if __name__ == '__main__':
                             antenna_distance, x, y, num_devices = 5, circular = circular,
                             simulation = 1, simulation_angles = [50], simulation_frequencies = [center_freq], simulation_noise = 1e1,
                             f_type = 'FIR', detection_range = 360, music_dim = 1)
+    
+    print(f'x = {kraken.x}')
+    print(f'y = {kraken.y}')
     
     app = QtWidgets.QApplication(sys.argv)
     plotter = RealTimePlotter()

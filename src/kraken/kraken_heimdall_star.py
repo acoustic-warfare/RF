@@ -219,7 +219,7 @@ class KrakenReceiver():
             self.iq_samples = signal.lfilter(self.filter, 1.0, self.iq_samples)
 
 
-    def music(self, index = [0, 1, 2, 3, 4], invert = 0, angle_offs = 0):
+    def music(self, index = [0, 1, 2, 3, 4], angle_offs = 0):
         """
         Performs Direction of Arrival (DOA) estimation using the MEM algorithm.
 
@@ -244,7 +244,7 @@ class KrakenReceiver():
         #smoothed_buffer = self.spatial_smoothing_rewrite(2, 'forward-backward')
         #spatial_corr_matrix = np.dot(smoothed_buffer, smoothed_buffer.conj().T)
         spatial_corr_matrix = de.spatial_correlation_matrix(buffer, self.num_samples)
-        spatial_corr_matrix = de.forward_backward_avg(spatial_corr_matrix)
+        #spatial_corr_matrix = de.forward_backward_avg(spatial_corr_matrix)
         # scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
         scanning_vectors = de.gen_scanning_vectors(buffer_dim, x, y, np.arange(angle_offs, self.detection_range + angle_offs))
         sig_dim = 1 #de.infer_signal_dimension(spatial_corr_matrix)
@@ -340,7 +340,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.doa_curve = None  # Initialize doa_curve to None
         self.doa_curve_2 = None
         self.doa_curve_3 = None
-        self.doa_curves = [self.doa_curve, self.doa_curve_2, self.doa_curve_3]
+        self.doa_curves = [self.doa_curve, self.doa_curve_2]
         self.color_list = ['red', 'green', 'blue', 'yellow', 'pink', 'orange']
         
         
@@ -452,33 +452,37 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             kraken.apply_filter()
             #kraken.record_samples()
 
-            doa_data = kraken.music([0, 1], angle_offs = 0)
+            doa_data = kraken.music()
             doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
-            doa_data_2 = kraken.music([1, 2], angle_offs = 0)
-            doa_data_2 = np.divide(np.abs(doa_data_2), np.max(np.abs(doa_data_2)))
-            doa_data_3 = kraken.music([2, 0], angle_offs = 0)
-            doa_data_3 = np.divide(np.abs(doa_data_3), np.max(np.abs(doa_data_3)))
-            doa_datas = [doa_data, doa_data_2, doa_data_3]
 
-            ang_1 = np.argmax(doa_data)  #+7
-            ang_2 = np.argmax(doa_data_2) #-10
-            ang_3 = np.argmax(doa_data_3) #-10
+            ang_0 = np.argmax(doa_data)
 
-            angs = [ang_1, ang_1, ang_2, ang_2, ang_3, ang_3]
-            ang_centers = [0, 180, 120, 300, 60, 240]
-            ang_floors = [0, 0, 120, 120, 60, 60]
-            ang_roofs = [180, 180, 300, 300, 240, 240]
-            ang_center_diffs = [abs(ang_centers_i - angs_i) for ang_centers_i, angs_i in zip(ang_centers, angs)]
+            # angs = [ang_1, ang_1, ang_2, ang_2, ang_3, ang_3]
+            # ang_centers = [0, 180, 120, 300, 60, 240]
             #ang_center_diffs = [0-ang_1, 180-ang_1, 120-ang_2, 300-ang_2, 60-ang_3, 240-ang_3]
+            
+            ang_centers = [[36, 216], [108, 288],  [0, 180], [72, 252], [144, 324]]
+            ang_center_diffs = [min([abs(c[0] - ang_0), abs(c[1] - ang_0)]) for c in ang_centers]
             ang_min_diff = min(ang_center_diffs)
             index_best = ang_center_diffs.index(ang_min_diff)
-            ang_best = angs[index_best]
+            ang_best = ang_centers[index_best]
             #if ang_best > 145: ang_best += 10
 
             # +10 degree offset needed for ang_2 and ang_3 when above 180 degrees
             
-            print(f'best angle (first) = {ang_best} degrees') 
+            print(f'first angle = {ang_0} degrees') 
 
+            if index_best == 4:
+                index_next = 0
+            else:
+                index_next = index_best + 1
+
+            doa_data_1 = kraken.music([index_best, index_next])
+            doa_data_1 = np.divide(np.abs(doa_data_1), np.max(np.abs(doa_data_1)))
+            ang_1 = np.argmax(doa_data_1)
+
+
+            doa_datas = [doa_data, doa_data_1]
 
             # # ang_1 is best
             # if index_best < 2:    
@@ -518,10 +522,10 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             # print(f'avg = {ang_avg}')
 
 
-
-            print(f'best index = {index_best}') 
+            print(f'antennas used = {index_best, index_next}') 
             print(f'best angle = {ang_best} degrees') 
-
+            print(f'angle = {ang_1} degrees') 
+            
             
             freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.daq_sample_rate)  
             ant0 = np.abs(fft(kraken.iq_samples[0]))
