@@ -54,8 +54,8 @@ class KrakenReceiver():
             self.detection_range = 180
         else:
             self.detection_range = 360
-        self.thetas = np.arange(-self.detection_range/2 - 90, self.detection_range/2 - 90)
-        self.scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, self.thetas)
+        self.scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, 
+                                                        np.arange(-self.detection_range/2 - 90, self.detection_range/2 - 90))
         self.waraps = waraps
 
         #Shared memory setup
@@ -76,6 +76,14 @@ class KrakenReceiver():
         self.init_filter()
 
     def init_filter(self):
+        """
+        Initialize the filter based on the specified filter type.
+
+        This function initializes a digital filter according to the `f_type` attribute of the instance. 
+        The filter can be of three types: Butterworth ('butter'), Finite Impulse Response ('FIR'), 
+        or Linear Time-Invariant ('LTI'). The function sets the appropriate filter coefficients for the selected filter type.
+
+        """
         if self.f_type == 'butter':
             #Build digital filter
             fc = self.daq_center_freq
@@ -170,7 +178,6 @@ class KrakenReceiver():
 
         Parameters:
         -----------
-
             :param: msg: Message bytes, that will be sent ont the control interface
             :type:  msg: Byte array
         """
@@ -272,9 +279,9 @@ class KrakenReceiver():
             Array of estimated DOA angles in degrees.
         """
         spatial_corr_matrix = de.spatial_correlation_matrix(self.iq_samples, self.num_samples)
+        sig_dim = de.infer_signal_dimension(spatial_corr_matrix)
         if self.array_type == 'ULA':
             spatial_corr_matrix = de.forward_backward_avg(spatial_corr_matrix)
-        sig_dim = de.infer_signal_dimension(spatial_corr_matrix)
         doa = de.DOA_MUSIC(spatial_corr_matrix, self.scanning_vectors, sig_dim)
 
         return doa
@@ -344,6 +351,14 @@ class RealTimePlotter(QtWidgets.QMainWindow):
                 
 
     def grab_frame(self):
+        """
+        Capture the current frame of the widget and convert it to a NumPy array.
+
+        This function captures the current visual state of the widget using Qt's rendering capabilities. It converts the captured image into a QImage in RGB format and then transforms it into a NumPy array.
+
+        Returns:
+            np.ndarray: A 3D NumPy array representing the captured frame, with shape (height, width, 3).
+        """
         pixmap = QtGui.QPixmap(self.size())
         self.render(pixmap)
 
@@ -357,6 +372,15 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         return arr 
     
     def send_frame(self):
+        """
+        Capture the current frame and send it as a GStreamer buffer.
+
+        This function captures the current frame using the `grab_frame` method, converts the frame to a byte array, 
+        and sends it to a GStreamer pipeline. It timestamps the buffer and sets its duration for a 30 FPS stream.
+
+        Returns:
+            bool: Always returns True.
+        """
         frame = self.grab_frame()
         data = frame.tobytes()
         buf = Gst.Buffer.new_allocate(None, len(data), None)
@@ -374,6 +398,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         Sets up the user interface (UI) layout.
         """
         self.setWindowTitle('Real-Time Data Visualization')
+        self.setGeometry(100, 100, 1280, 720)
         
         self.centralWidget = QtWidgets.QWidget()
         self.setCentralWidget(self.centralWidget)
@@ -386,29 +411,29 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.doa_plot.showAxis('bottom', False)
         self.layout.addWidget(self.doa_plot, 0, 0, 1, 1)
         
-        self.fft_plot_0 = pg.PlotWidget(title="FFT Antenna 0")
-        self.fft_curve_0 = self.fft_plot_0.plot(pen='r')
-        self.layout.addWidget(self.fft_plot_0, 0, 1, 1, 1)
+        # self.fft_plot_0 = pg.PlotWidget(title="FFT Antenna 0")
+        # self.fft_curve_0 = self.fft_plot_0.plot(pen='r')
+        # self.layout.addWidget(self.fft_plot_0, 0, 1, 1, 1)
         
-        self.fft_plot_1 = pg.PlotWidget(title="FFT Antenna 1")
-        self.fft_curve_1 = self.fft_plot_1.plot(pen='g')
-        self.layout.addWidget(self.fft_plot_1, 1, 0, 1, 1)
+        # self.fft_plot_1 = pg.PlotWidget(title="FFT Antenna 1")
+        # self.fft_curve_1 = self.fft_plot_1.plot(pen='g')
+        # self.layout.addWidget(self.fft_plot_1, 1, 0, 1, 1)
         
-        self.fft_plot_2 = pg.PlotWidget(title="FFT Antenna 2")
-        self.fft_curve_2 = self.fft_plot_2.plot(pen='b')
-        self.layout.addWidget(self.fft_plot_2, 1, 1, 1, 1)
+        # self.fft_plot_2 = pg.PlotWidget(title="FFT Antenna 2")
+        # self.fft_curve_2 = self.fft_plot_2.plot(pen='b')
+        # self.layout.addWidget(self.fft_plot_2, 1, 1, 1, 1)
 
-        self.fft_plot_3 = pg.PlotWidget(title="FFT Antenna 3")
-        self.fft_curve_3 = self.fft_plot_3.plot(pen='y')  # Changed to yellow
-        self.layout.addWidget(self.fft_plot_3, 2, 0, 1, 1)
+        # self.fft_plot_3 = pg.PlotWidget(title="FFT Antenna 3")
+        # self.fft_curve_3 = self.fft_plot_3.plot(pen='y')  # Changed to yellow
+        # self.layout.addWidget(self.fft_plot_3, 2, 0, 1, 1)
 
-        self.fft_plot_4 = pg.PlotWidget(title="FFT Antenna 4")
-        self.fft_curve_4 = self.fft_plot_4.plot(pen='c')  # Changed to cyan
-        self.layout.addWidget(self.fft_plot_4, 2, 1, 1, 1)
+        # self.fft_plot_4 = pg.PlotWidget(title="FFT Antenna 4")
+        # self.fft_curve_4 = self.fft_plot_4.plot(pen='c')  # Changed to cyan
+        # self.layout.addWidget(self.fft_plot_4, 2, 1, 1, 1)
 
         self.doa_cartesian_plot = pg.PlotWidget(title="Direction of Arrival (Cartesian)")
         self.doa_cartesian_curve = self.doa_cartesian_plot.plot(pen=pg.mkPen(pg.mkColor(70,220,0), width=2))
-        self.layout.addWidget(self.doa_cartesian_plot, 3, 0, 1, 2)  # Adding Cartesian plot
+        self.layout.addWidget(self.doa_cartesian_plot, 3, 0, 1, 2) 
 
         self.create_polar_grid()
         self.doa_curve = None  # Initialize doa_curve to None
@@ -487,19 +512,19 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             doa_data = kraken.music()
             doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
                 
-            freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.daq_sample_rate)  
-            ant0 = np.abs(fft(kraken.iq_samples[0]))
-            ant1 = np.abs(fft(kraken.iq_samples[1]))
-            ant2 = np.abs(fft(kraken.iq_samples[2]))
-            ant3 = np.abs(fft(kraken.iq_samples[3]))
-            ant4 = np.abs(fft(kraken.iq_samples[4]))  
+            # freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.daq_sample_rate)  
+            # ant0 = np.abs(fft(kraken.iq_samples[0]))
+            # ant1 = np.abs(fft(kraken.iq_samples[1]))
+            # ant2 = np.abs(fft(kraken.iq_samples[2]))
+            # ant3 = np.abs(fft(kraken.iq_samples[3]))
+            # ant4 = np.abs(fft(kraken.iq_samples[4]))  
                 
             self.plot_doa_circle(doa_data)
-            self.fft_curve_0.setData(freqs, ant0)
-            self.fft_curve_1.setData(freqs, ant1)
-            self.fft_curve_2.setData(freqs, ant2)
-            self.fft_curve_3.setData(freqs, ant3)
-            self.fft_curve_4.setData(freqs, ant4)
+            # self.fft_curve_0.setData(freqs, ant0)
+            # self.fft_curve_1.setData(freqs, ant1)
+            # self.fft_curve_2.setData(freqs, ant2)
+            # self.fft_curve_3.setData(freqs, ant3)
+            # self.fft_curve_4.setData(freqs, ant4)
             self.doa_cartesian_curve.setData(np.linspace(0, len(doa_data), len(doa_data)), doa_data)
 
             print(np.argmax(doa_data) - 90) 
