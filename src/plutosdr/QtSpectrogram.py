@@ -151,7 +151,6 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             (0, 0, 139),            #Dark Blue
             (59, 82, 139),          #Blue
             (33, 145, 140),         #Turquoise
-            (94, 201, 98),          #Green
             (253, 231, 37),         #Yellow
             (238, 75, 43)           #Red
 
