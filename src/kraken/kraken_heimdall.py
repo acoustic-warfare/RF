@@ -523,8 +523,3 @@ if __name__ == "__main__":
     if kraken.waraps:
         GLib.timeout_add(1000 // 30, plotter.send_frame)
     sys.exit(app.exec_())
-
-#1. Start waraps mqtt client
-#2. push and receive messages from the mqtt client
-    # Add handling for the received message
-#3. mqtt client receives and sends messages from waraps

@@ -2,6 +2,8 @@ import numpy as np
 from numpy import linalg as lin
 from numba import njit
 from functools import lru_cache
+from scipy.linalg import toeplitz
+import scipy
 
 #This file contains numba optimized code from the pyargus library
 
@@ -109,6 +111,16 @@ def forward_backward_avg(R):
 
     return np.ascontiguousarray(R_fb)
 
+#@njit(fastmath=True, cache=True)
+def whiten_transform(R):
+    eigenvalues, eigenvectors = lin.eig(R)
+    w = eigenvectors @ np.diag(1.0 / np.sqrt(eigenvalues)) @ eigenvectors.T
+    return w @ R @ w.T
+
+def toeplitzify(R):
+    row = R[0, :]
+    return toeplitz(row)
+
 @njit(fastmath=True, cache=True)
 def gen_scanning_vectors(M, x, y, thetas):
     """
@@ -140,6 +152,17 @@ def gen_scanning_vectors(M, x, y, thetas):
     for i in range(thetas.size):        
         theta_rad = np.deg2rad(thetas[i])        
         scanning_vectors[:,i] = np.exp(1j*2*np.pi* (x*np.cos(theta_rad) + y*np.sin(theta_rad)))    
+    
+    return np.ascontiguousarray(scanning_vectors)
+
+
+#@njit(fastmath=True, cache=True)
+def gen_scanning_vectors_phase_mode(): #thetas
+    thetas = np.deg2rad(np.linspace(0, 359, 360, dtype=float))
+    M = np.arange(0, 360, dtype=float)
+    scanning_vectors = np.zeros((M.size, thetas.size), dtype=np.complex64)
+    for i in range(thetas.size):
+        scanning_vectors[:, i] = np.exp(1.0j * M * (thetas[i]))   
     
     return np.ascontiguousarray(scanning_vectors)
 
@@ -253,7 +276,7 @@ def infer_signal_dimension(correlation_matrix, threshold_ratio=0.3):
         The inferred number of signals, capped at a maximum of 4.
     """
     # Compute eigenvalues
-    eigenvalues = np.linalg.eigvals(correlation_matrix)
+    eigenvalues = lin.eigvals(correlation_matrix)
     
     # Compute magnitudes of eigenvalues
     magnitudes = np.abs(eigenvalues)

@@ -11,7 +11,7 @@ from pyqtgraph.Qt import QtCore
 class KrakenSim():
 
     def __init__(self, center_freq, num_samples, sample_rate, gain, 
-                 antenna_distance, x, y, num_devices=5, circular = 0,
+                 antenna_distance, x, y, array_type, num_devices=5, circular = 0,
                 simulation_angles = [0], simulation_frequencies = [434.4e6], simulation_distances = [100], simulation_noise = 1e2,
                  f_type = 'FIR', detection_range = 360, music_dim = 2):
         
@@ -29,6 +29,8 @@ class KrakenSim():
         self.circular = circular
         self.x = x * antenna_distance
         self.y = y * antenna_distance
+        self.antenna_distance = antenna_distance
+        self.array_type = array_type
         self.detection_range = detection_range
         self.music_dim = music_dim
            
@@ -81,8 +83,6 @@ class KrakenSim():
             self.buffer = signal.sosfilt(self.filter, self.buffer)
         elif self.f_type == 'FIR':
             self.buffer = signal.lfilter(self.filter, 1.0, self.buffer)
-    
-    
 
     def music(self, signal_dimension, index = [0,-1]):
         """
@@ -92,12 +92,22 @@ class KrakenSim():
         numpy.ndarray
             Array of estimated DOA angles in degrees.
         """
-        
         spatial_corr_matrix = pa.spatial_correlation_matrix(self.buffer, self.num_samples)
-        #spatial_corr_matrix = pa.forward_backward_avg(spatial_corr_matrix)
         scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
-        doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=signal_dimension)
 
+        if self.array_type == "ULA":
+            scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
+            spatial_corr_matrix = pa.forward_backward_avg(spatial_corr_matrix)
+            doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=signal_dimension)
+        else:
+            #Perform phase mode transformation to make Music suitable for UCA
+            #R = scanning_vectors.conj().T @ spatial_corr_matrix @ scanning_vectors
+            #R = pa.whiten_transform(R)
+            #vecs = pa.gen_scanning_vectors_phase_mode()
+            #doa = pa.DOA_MUSIC(R, vecs, signal_dimension=signal_dimension)
+            doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=signal_dimension)
+            #doa = pa.doa_root_music(spatial_corr_matrix, signal_dimension, self.antenna_distance, 0)
+        
         return doa
 
 def signals_linear(frequencies, angles, num_sensors, num_snapshots, antenna_positions, wavelength=1.0, noise_power=1e1):
@@ -298,7 +308,7 @@ def signals_arbitrary(frequencies, angles, num_sensors, num_snapshots, x, y, wav
     # Additive white Gaussian noise
     noise = np.sqrt(noise_power / 2) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
     
-    return signals + noise
+    return signals + 1 * noise
 
 class RealTimePlotter(QtWidgets.QMainWindow):
     """
@@ -336,25 +346,25 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.doa_plot.showAxis('bottom', False) 
         self.layout.addWidget(self.doa_plot, 0, 0, 1, 1) 
         
-        self.fft_plot_0 = pg.PlotWidget(title="FFT Antenna 0")
-        self.fft_curve_0 = self.fft_plot_0.plot(pen='r')
-        self.layout.addWidget(self.fft_plot_0, 0, 1, 1, 1)
+        # self.fft_plot_0 = pg.PlotWidget(title="FFT Antenna 0")
+        # self.fft_curve_0 = self.fft_plot_0.plot(pen='r')
+        # self.layout.addWidget(self.fft_plot_0, 0, 1, 1, 1)
         
-        self.fft_plot_1 = pg.PlotWidget(title="FFT Antenna 1")
-        self.fft_curve_1 = self.fft_plot_1.plot(pen='g')
-        self.layout.addWidget(self.fft_plot_1, 1, 0, 1, 1)
+        # self.fft_plot_1 = pg.PlotWidget(title="FFT Antenna 1")
+        # self.fft_curve_1 = self.fft_plot_1.plot(pen='g')
+        # self.layout.addWidget(self.fft_plot_1, 1, 0, 1, 1)
         
-        self.fft_plot_2 = pg.PlotWidget(title="FFT Antenna 2")
-        self.fft_curve_2 = self.fft_plot_2.plot(pen='b')
-        self.layout.addWidget(self.fft_plot_2, 1, 1, 1, 1)
+        # self.fft_plot_2 = pg.PlotWidget(title="FFT Antenna 2")
+        # self.fft_curve_2 = self.fft_plot_2.plot(pen='b')
+        # self.layout.addWidget(self.fft_plot_2, 1, 1, 1, 1)
 
-        self.fft_plot_3 = pg.PlotWidget(title="FFT Antenna 3")
-        self.fft_curve_3 = self.fft_plot_3.plot(pen='y')  # Changed to yellow
-        self.layout.addWidget(self.fft_plot_3, 2, 0, 1, 1)
+        # self.fft_plot_3 = pg.PlotWidget(title="FFT Antenna 3")
+        # self.fft_curve_3 = self.fft_plot_3.plot(pen='y')  # Changed to yellow
+        # self.layout.addWidget(self.fft_plot_3, 2, 0, 1, 1)
 
-        self.fft_plot_4 = pg.PlotWidget(title="FFT Antenna 4")
-        self.fft_curve_4 = self.fft_plot_4.plot(pen='c')  # Changed to cyan
-        self.layout.addWidget(self.fft_plot_4, 2, 1, 1, 1)
+        # self.fft_plot_4 = pg.PlotWidget(title="FFT Antenna 4")
+        # self.fft_curve_4 = self.fft_plot_4.plot(pen='c')  # Changed to cyan
+        # self.layout.addWidget(self.fft_plot_4, 2, 1, 1, 1)
 
         self.create_polar_grid()
         self.doa_curve = None  # Initialize doa_curve to None
@@ -439,18 +449,18 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         
         freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.sample_rate)
         
-        ant0 = np.abs(fft(kraken.buffer[0]))
-        ant1 = np.abs(fft(kraken.buffer[1]))
-        ant2 = np.abs(fft(kraken.buffer[2]))
-        ant3 = np.abs(fft(kraken.buffer[3]))
-        ant4 = np.abs(fft(kraken.buffer[4]))  
+        # ant0 = np.abs(fft(kraken.buffer[0]))
+        # ant1 = np.abs(fft(kraken.buffer[1]))
+        # ant2 = np.abs(fft(kraken.buffer[2]))
+        # ant3 = np.abs(fft(kraken.buffer[3]))
+        # ant4 = np.abs(fft(kraken.buffer[4]))  
         
         self.plot_doa_circle(doa_data)
-        self.fft_curve_0.setData(freqs, ant0)
-        self.fft_curve_1.setData(freqs, ant1)
-        self.fft_curve_2.setData(freqs, ant2)
-        self.fft_curve_3.setData(freqs, ant3)
-        self.fft_curve_4.setData(freqs, ant4)
+        # self.fft_curve_0.setData(freqs, ant0)
+        # self.fft_curve_1.setData(freqs, ant1)
+        # self.fft_curve_2.setData(freqs, ant2)
+        # self.fft_curve_3.setData(freqs, ant3)
+        # self.fft_curve_4.setData(freqs, ant4)
 
         print(np.argmax(doa_data))
 
@@ -481,8 +491,8 @@ if __name__ == '__main__':
         antenna_distance = 0.175
 
     kraken = KrakenSim(center_freq, num_samples, sample_rate, gain,    
-                            antenna_distance, x, y, num_devices = 5, circular = circular,
-                            simulation_angles = [130], simulation_frequencies = [center_freq], simulation_noise = 1e1,
+                            antenna_distance, x, y, "UCA", num_devices = 5, circular = circular,
+                            simulation_angles = [100], simulation_frequencies = [center_freq], simulation_noise = 1e1,
                             f_type = 'FIR', detection_range = 360, music_dim = 1)
     
     app = QtWidgets.QApplication(sys.argv)
