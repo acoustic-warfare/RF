@@ -89,6 +89,7 @@ def DOA_MUSIC(R, scanning_vectors, signal_dimension):
 def forward_backward_avg(R):
     """
     Computes the forward-backward averaged spatial correlation matrix.
+    This does not work for UCA.
 
     Parameters:
     -----------
@@ -110,16 +111,6 @@ def forward_backward_avg(R):
     R_fb = 0.5 * (R + J@np.conjugate(R)@J)
 
     return np.ascontiguousarray(R_fb)
-
-#@njit(fastmath=True, cache=True)
-def whiten_transform(R):
-    eigenvalues, eigenvectors = lin.eig(R)
-    w = eigenvectors @ np.diag(1.0 / np.sqrt(eigenvalues)) @ eigenvectors.T
-    return w @ R @ w.T
-
-def toeplitzify(R):
-    row = R[0, :]
-    return toeplitz(row)
 
 @njit(fastmath=True, cache=True)
 def gen_scanning_vectors(M, x, y, thetas):
@@ -152,58 +143,6 @@ def gen_scanning_vectors(M, x, y, thetas):
     for i in range(thetas.size):        
         theta_rad = np.deg2rad(thetas[i])        
         scanning_vectors[:,i] = np.exp(1j*2*np.pi* (x*np.cos(theta_rad) + y*np.sin(theta_rad)))    
-    
-    return np.ascontiguousarray(scanning_vectors)
-
-
-#@njit(fastmath=True, cache=True)
-def gen_scanning_vectors_phase_mode(): #thetas
-    thetas = np.deg2rad(np.linspace(0, 359, 360, dtype=float))
-    M = np.arange(0, 360, dtype=float)
-    scanning_vectors = np.zeros((M.size, thetas.size), dtype=np.complex64)
-    for i in range(thetas.size):
-        scanning_vectors[:, i] = np.exp(1.0j * M * (thetas[i]))   
-    
-    return np.ascontiguousarray(scanning_vectors)
-
-
-@lru_cache(maxsize=32)
-@njit(fastmath=True, cache=True)
-def gen_scanning_vectors_optimized(M, array_type, antenna_distance, detection_range):
-    """
-    Generates scanning vectors for a uniform linear array (ULA) configuration.
-    This function is suitable for use in situations where scanning vectors are dynamic.
-
-    Parameters:
-    -----------
-    M : int
-        Number of elements in the antenna array.
-    array_type : str
-        Type of antenna array. Currently, only "ULA" (Uniform Linear Array) is supported.
-    antenna_distance : float
-        Distance between adjacent antennas in the array.
-    detection_range : float
-        Range of angles to scan for detection, in degrees.
-
-    Returns:
-    --------
-    scanning_vectors : ndarray
-        A 2D array where each column represents a scanning vector corresponding to a specific angle.
-
-    """
-
-    if array_type == "ULA":
-        y = np.array([0, 0, 0, 0, 0])
-        x = np.array([0, 1, 2, 3, 4]) * antenna_distance
-    else:
-        raise RuntimeError("Unsupported array type, use unoptimized version")
-    
-    thetas = np.arange(-detection_range/2 - 90, detection_range/2 - 90)
-    
-    scanning_vectors = np.zeros((M, thetas.size), dtype=np.complex64)
-    for i in range(thetas.size):
-        theta_rad = np.deg2rad(thetas[i])        
-        scanning_vectors[:,i] = np.exp(1j*2*np.pi* (x*np.cos(theta_rad) + y*np.sin(np.deg2rad(theta_rad))))    
     
     return np.ascontiguousarray(scanning_vectors)
 
