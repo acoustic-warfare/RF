@@ -49,6 +49,8 @@ class KrakenReceiver():
         self.ctr_iface_socket.connect(('127.0.0.1', self.ctr_iface_port))
         self.ctr_iface_init()
 
+        print(f'antenna_distance = {antenna_distance}')
+
         if f_type == 'butter':
             #Build digital filter
             fc = self.daq_center_freq
@@ -313,36 +315,15 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.layout.addWidget(self.doa_plot, 0, 0, 1, 1)
         
         self.fft_plot_0 = pg.PlotWidget(title="FFT Antenna 0")
-        self.fft_curve_0 = self.fft_plot_0.plot(pen='r')
+        self.fft_curve_0 = self.fft_plot_0.plot(pen='dark green')
         self.layout.addWidget(self.fft_plot_0, 0, 1, 1, 1)
-        
-        # self.fft_plot_1 = pg.PlotWidget(title="FFT Antenna 1")
-        # self.fft_curve_1 = self.fft_plot_1.plot(pen='g')
-        # self.layout.addWidget(self.fft_plot_1, 1, 0, 1, 1)
-        
-        # self.fft_plot_2 = pg.PlotWidget(title="FFT Antenna 2")
-        # self.fft_curve_2 = self.fft_plot_2.plot(pen='b')
-        # self.layout.addWidget(self.fft_plot_2, 1, 1, 1, 1)
-
-        # self.fft_plot_3 = pg.PlotWidget(title="FFT Antenna 3")
-        # self.fft_curve_3 = self.fft_plot_3.plot(pen='y')  # Changed to yellow
-        # self.layout.addWidget(self.fft_plot_3, 2, 0, 1, 1)
-
-        # self.fft_plot_4 = pg.PlotWidget(title="FFT Antenna 4")
-        # self.fft_curve_4 = self.fft_plot_4.plot(pen='c')  # Changed to cyan
-        # self.layout.addWidget(self.fft_plot_4, 2, 1, 1, 1)
-
-        self.doa_cartesian_plot = pg.PlotWidget(title="Direction of Arrival (Cartesian)")
-        self.doa_cartesian_curve = self.doa_cartesian_plot.plot(pen=pg.mkPen(pg.mkColor(70,220,0), width=2))
-        self.layout.addWidget(self.doa_cartesian_plot, 3, 0, 1, 2)  # Adding Cartesian plot
 
         self.create_polar_grid()
         self.doa_curve = None  # Initialize doa_curve to None
         self.doa_curve_2 = None
         self.doa_curve_3 = None
         self.doa_curves = [self.doa_curve, self.doa_curve_2]
-        self.color_list = ['red', 'green', 'blue', 'yellow', 'pink', 'orange']
-        
+        self.color_list = ['green', 'dark green']
         
 
     def create_polar_grid(self):
@@ -454,94 +435,64 @@ class RealTimePlotter(QtWidgets.QMainWindow):
 
             doa_data = kraken.music()
             doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
-
             ang_0 = np.argmax(doa_data)
-
-            # angs = [ang_1, ang_1, ang_2, ang_2, ang_3, ang_3]
-            # ang_centers = [0, 180, 120, 300, 60, 240]
-            #ang_center_diffs = [0-ang_1, 180-ang_1, 120-ang_2, 300-ang_2, 60-ang_3, 240-ang_3]
             
-            ang_centers = [[36, 216], [108, 288],  [0, 180], [72, 252], [144, 324], [360, 180]]
+            # ang_centers = [[36, 216], [108, 288], [0, 180], [72, 252], [144, 324], [360, 180]]
+            ang_centers = [[72, 252], [144, 324], [36, 216], [108, 288], [0, 180], [360, 180]]
             ang_center_diffs = [min([abs(c[0] - ang_0), abs(c[1] - ang_0)]) for c in ang_centers]
             ang_min_diff = min(ang_center_diffs)
             index_best = ang_center_diffs.index(ang_min_diff)
-            over_180 = ang_0 > 180
-            
-            print(f'Over 180 degrees: {over_180}')
-            
-            #if ang_best > 145: ang_best += 10
-
-            # +10 degree offset needed for ang_2 and ang_3 when above 180 degrees
-            
-            print(f'first angle = {ang_0} degrees') 
 
             ang_best = ang_centers[index_best]
+            left_half =  abs(ang_best[0] - ang_0) > abs(ang_best[1] - ang_0)
+            print(f'Left half-plane: {left_half}')
+            print(f'first angle = {ang_0} degrees') 
 
             if index_best == 5:
-                index_best = 2
-                index_next = 3
+                index_best = 4
+                index_next = 1
             elif index_best == 4:
+                index_next = 1
+            elif index_best == 3:
                 index_next = 0
             else:
-                index_next = index_best + 1
-                
-
-            # index_best = 2
-            # index_next = 3
-
-            doa_data_1 = kraken.music([index_best, index_next])
-            doa_data_1 = np.divide(np.abs(doa_data_1), np.max(np.abs(doa_data_1)))
-            ang_1 = np.argmax(doa_data_1)
-
-
-            # if over_180: 
-            #     print('trace 0')
-            #     if ang_1 > 180:
-            #         print('trace 1')
-            #         diff = ang_1 - ang_best[1] 
-            #         ang_1 = ang_1 -180 + 2*diff
-            #         print(f'diff = {diff}') 
-            # elif ang_1 < 180:
-            #     print('trace 2')
-            #     diff = ang_1 - ang_best[0] 
-            #     ang_1 = ang_1 +180 - 2*diff
-            #     print(f'diff = {diff}')
-                
-
-            doa_datas = [doa_data, doa_data_1]
+                index_next = index_best + 2
 
             print(f'antennas used = {index_best, index_next}') 
             print(f'best angle = {ang_best} degrees') 
+
+            doa_data_1 = kraken.music([index_best, index_next])
+            doa_data_1 = np.divide(np.abs(doa_data_1), np.max(np.abs(doa_data_1)))            
+
+            if left_half:
+                ang_worst = ang_best[0]
+            else:
+                ang_worst = ang_best[1]
+
+            if ang_worst < 90: 
+                doa_data_1[ang_worst +270 : ] = 0.0
+                doa_data_1[ : ang_worst +90] = 0.0
+
+            elif ang_worst > 270: 
+                doa_data_1[ : ang_worst -270] = 0.0
+                doa_data_1[ang_worst -90 : ] = 0.0
+
+            else:
+                doa_data_1[ang_worst -90 : ang_worst +90] = 0.0
+
+
+            ang_1 = np.argmax(doa_data_1)
             print(f'angle = {ang_1} degrees') 
-            
+
+            doa_datas = [doa_data_1]
+            # doa_datas = [doa_data_1, doa_data]
             
             freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.daq_sample_rate)  
             ant0 = np.abs(fft(kraken.iq_samples[0]))
-            ant1 = np.abs(fft(kraken.iq_samples[1]))
-            ant2 = np.abs(fft(kraken.iq_samples[2]))
-            ant3 = np.abs(fft(kraken.iq_samples[3]))
-            ant4 = np.abs(fft(kraken.iq_samples[4]))  
-            
             
             self.plot_doa_circle(doa_datas)
             self.fft_curve_0.setData(freqs, ant0)
-            # self.fft_curve_1.setData(freqs, ant1)
-            # self.fft_curve_2.setData(freqs, ant2)
-            # self.fft_curve_3.setData(freqs, ant3)
-            # self.fft_curve_4.setData(freqs, ant4)
-            self.doa_cartesian_curve.setData(np.linspace(0, len(doa_data), len(doa_data)), doa_data)
 
-
-
-            #point = self.find_intersection([-0.175, 0], ang_1, [0.175, 0], ang_2)
-            #distance = np.sqrt(point[0]**2 + point[1]**2)
-            # print(f'ang_1 = {ang_1} degrees') 
-            # print(f'ang_2 = {ang_2} degrees')
-            # print(f'ang_2 = {ang_3} degrees')
-            # print(f'doa_1 = {np.argmax(doa_data) - 90} degrees') 
-            # print(f'doa_2 = {np.argmax(doa_data_2) - 90} degrees')
-            # print(f'point of intersection = {point}') 
-            # print(f'distance = {distance} meters')
 
         elif frame_type == 1:
             print("Received Dummy frame")
