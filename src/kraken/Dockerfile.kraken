@@ -33,16 +33,17 @@ RUN apt-get update && apt-get install -y \
     rm -rf /var/lib/apt/lists/*
 
 #Install kfr
-RUN git clone https://github.com/krakenrf/kfr /tmp/kfr && \
-    mkdir /tmp/kfr/build && \
-    cd /tmp/kfr/build && \
-    cmake -DENABLE_CAPI_BUILD=ON -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release .. && \
-    make && \
-    cp /tmp/kfr/build/lib/* /usr/local/lib && \
-    mkdir /usr/include/kfr && \
-    cp /tmp/kfr/include/kfr/capi.h /usr/include/kfr && \
-    ldconfig && \
-    rm -rf /tmp/kfr
+# RUN git clone https://github.com/krakenrf/kfr /tmp/kfr && \
+#     mkdir /tmp/kfr/build && \
+#     cd /tmp/kfr/build && \
+#     cmake -DENABLE_CAPI_BUILD=ON -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release .. && \
+#     make && \
+#     cp /tmp/kfr/build/lib/* /usr/local/lib && \
+#     mkdir /usr/include/kfr && \
+#     cp /tmp/kfr/include/kfr/capi.h /usr/include/kfr && \
+#     ldconfig && \
+#     rm -rf /tmp/kfr
+
 
 #Set the working directory in the container
 WORKDIR /src/kraken

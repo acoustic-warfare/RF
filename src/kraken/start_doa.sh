@@ -1,5 +1,7 @@
 #!/bin/bash
 
+ldconfig
+
 eval "$(conda shell.bash hook)"
 conda activate kraken
 
