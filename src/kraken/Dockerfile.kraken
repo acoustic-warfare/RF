@@ -11,9 +11,6 @@ RUN apt-get update && apt-get install -y \
     nano \
     libzmq3-dev \
     libusb-1.0-0 \
-    git \
-    cmake \
-    clang \
     libgstreamer1.0-dev \
     libgstreamer-plugins-base1.0-dev \
     libgstreamer-plugins-bad1.0-dev \
@@ -28,22 +25,8 @@ RUN apt-get update && apt-get install -y \
     gstreamer1.0-gl \
     gstreamer1.0-gtk3 \ 
     gstreamer1.0-qt5 \
-    gstreamer1.0-pulseaudio \
-    make && \
+    gstreamer1.0-pulseaudio && \
     rm -rf /var/lib/apt/lists/*
-
-#Install kfr
-# RUN git clone https://github.com/krakenrf/kfr /tmp/kfr && \
-#     mkdir /tmp/kfr/build && \
-#     cd /tmp/kfr/build && \
-#     cmake -DENABLE_CAPI_BUILD=ON -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=Release .. && \
-#     make && \
-#     cp /tmp/kfr/build/lib/* /usr/local/lib && \
-#     mkdir /usr/include/kfr && \
-#     cp /tmp/kfr/include/kfr/capi.h /usr/include/kfr && \
-#     ldconfig && \
-#     rm -rf /tmp/kfr
-
 
 #Set the working directory in the container
 WORKDIR /src/kraken
