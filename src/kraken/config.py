@@ -22,7 +22,8 @@ def kraken_config(center_freq, num_samples, sample_rate, antenna_distance,
         List of y-coordinates for the antenna array elements.
     f_type : str
         Type of the function used in processing (e.g., 'FFT', 'MUSIC').
-
+    waraps : bool
+        True to stream to waraps False if not
     """
     config = configparser.ConfigParser()
     config.read('heimdall_daq_fw/Firmware/daq_chain_config.ini')
@@ -62,6 +63,8 @@ def read_kraken_config():
         Array of y-coordinates for the antenna array elements.
     f_type : str
         Type of the function used in processing (e.g., 'FFT', 'MUSIC').
+    waraps : bool
+        True to stream to waraps False if not
     """
     config = configparser.ConfigParser()
     config.read('heimdall_daq_fw/Firmware/daq_chain_config.ini')
