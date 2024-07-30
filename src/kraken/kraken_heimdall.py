@@ -1,3 +1,4 @@
+import ctypes
 import os
 import numpy as np
 import h5py
@@ -9,11 +10,13 @@ import pyqtgraph as pg
 import _thread
 import time
 import logging
-import gi
-#os.environ['GST_DEBUG'] = "3" #Uncomment to enable GST debug logs
-gi.require_version('Gst', '1.0')
-gi.require_version('GLib', '2.0')
-from gi.repository import Gst, GLib
+sys.path.append('/usr/local/lib')
+from rtmp_streamer import PyRtmpStreamer as RtmpStreamer
+# import gi
+# #os.environ['GST_DEBUG'] = "3" #Uncomment to enable GST debug logs
+# gi.require_version('Gst', '1.0')
+# gi.require_version('GLib', '2.0')
+# from gi.repository import Gst, GLib
 from threading import Lock
 from struct import pack
 from PyQt5 import QtWidgets
@@ -23,6 +26,7 @@ from config import read_kraken_config
 from datetime import datetime
 from shmemIface import inShmemIface
 from iq_header import IQHeader
+
 
 
 
@@ -39,6 +43,8 @@ class KrakenReceiver():
             filename='kraken.log',
             filemode='w'  
         )
+
+        self.streamer = RtmpStreamer(1280, 720)
         self.logger = logging.getLogger(__name__)
 
         center_freq, num_samples, sample_rate, antenna_distance, x, y, array_type, f_type, waraps = read_kraken_config()
@@ -331,23 +337,25 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.update_plots)
         self.timer.start(0)
+        
+        self.streamer.start_stream()
+        # if kraken.waraps:
+            # Gst.init(None)
+            # kraken.logger.info("GStreamer initialized successfully")
 
-        if kraken.waraps:
-            Gst.init(None)
-            kraken.logger.info("GStreamer initialized successfully")
 
-            self.pipeline = Gst.parse_launch(
-                " appsrc name=doa is_live=true block=true format=GST_FORMAT_TIME caps=video/x-raw,width=1280,format=RGB,height=720 "
-                " ! videoconvert ! x264enc tune=zerolatency speed-preset=superfast bitrate=2500"
-                " ! queue ! flvmux streamable=true ! rtmp2sink location=rtmp://ome.waraps.org/app/KrakenSDR"
-                )
+            # self.pipeline = Gst.parse_launch(
+            #     " appsrc name=doa is_live=true block=true format=GST_FORMAT_TIME caps=video/x-raw,width=1280,format=RGB,height=720 "
+            #     " ! videoconvert ! x264enc tune=zerolatency speed-preset=superfast bitrate=2500"
+            #     " ! queue ! flvmux streamable=true ! rtmp2sink location=rtmp://ome.waraps.org/app/KrakenSDR"
+            #     )
             
-            self.appsrc = self.pipeline.get_by_name('doa')
-            self.start_time = time.time()
-            ret = self.pipeline.set_state(Gst.State.PLAYING)
-            if ret == Gst.StateChangeReturn.FAILURE:
-                kraken.logger.critical("Unable to set the pipeline to the playing state")
-                raise RuntimeError("Unable to set the pipeline to the playing state.")
+            # self.appsrc = self.pipeline.get_by_name('doa')
+            # self.start_time = time.time()
+            # ret = self.pipeline.set_state(Gst.State.PLAYING)
+            # if ret == Gst.StateChangeReturn.FAILURE:
+            #     kraken.logger.critical("Unable to set the pipeline to the playing state")
+            #     raise RuntimeError("Unable to set the pipeline to the playing state.")
                 
 
     def grab_frame(self):
@@ -382,14 +390,17 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             bool: Always returns True.
         """
         frame = self.grab_frame()
-        data = frame.tobytes()
-        buf = Gst.Buffer.new_allocate(None, len(data), None)
-        timestamp = (time.time() - self.start_time) * Gst.SECOND
-        buf.pts = timestamp
-        buf.dts = timestamp
-        buf.duration = Gst.SECOND // 30
-        buf.fill(0, data)
-        self.appsrc.emit('push-buffer', buf)
+        data = frame.ctypes.data_as(ctypes.POINTER(ctypes.c_ubyte))
+        self.streamer.send_frame(data)
+        
+        
+        # buf = Gst.Buffer.new_allocate(None, len(data), None)
+        # timestamp = (time.time() - self.start_time) * Gst.SECOND
+        # buf.pts = timestamp
+        # buf.dts = timestamp
+        # buf.duration = Gst.SECOND // 30
+        # buf.fill(0, data)
+        # self.appsrc.emit('push-buffer', buf)
         kraken.logger.info("Sent frame to waraps")
         return True
 

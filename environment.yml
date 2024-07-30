@@ -28,3 +28,4 @@ dependencies:
   - py-opencv
   - x264
   - libxcb
+  - conda-forge::cython
