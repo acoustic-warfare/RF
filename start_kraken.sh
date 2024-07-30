@@ -29,9 +29,24 @@ if ! [ -x "$(command -v docker)" ]; then
     esac
 fi
 
+# Function to check if a Docker Compose project is running
+is_compose_running() {
+  docker-compose ps -q | grep -q '[[:alnum:]]'
+}
+
+# Function to stop and remove Docker Compose services
+remove_compose_services() {
+  echo "Stopping and removing existing Docker Compose services..."
+  docker-compose down -v --remove-orphans
+}
+
+# Check if Docker Compose is already running
+if is_compose_running; then
+  remove_compose_services
+fi
+
 # Grant local Docker containers permission to connect to the X server
 xhost +local:docker
 
 # Starting the container
-#docker run --privileged -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix -p 1935:1935 --name kraken-app kraken
 docker-compose up kraken-app
