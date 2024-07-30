@@ -7,7 +7,6 @@ dependencies:
   - scipy
   - scikit-rf=1.1.0
   - numba
-  - conda-forge::pyadi-iio
   - qt 
   - pyqt 
   - pyqtgraph
