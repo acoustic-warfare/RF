@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+
+  kraken-app:
+      build:
+        context: ./src/kraken
+        dockerfile: Dockerfile.kraken
+      ports:
+        - "1935:1935"
+      environment:
+        - DISPLAY=${DISPLAY}
+      volumes:
+        - /tmp/.X11-unix:/tmp/.X11-unix
+      privileged: true
