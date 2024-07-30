@@ -461,66 +461,54 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             # ang_centers = [0, 180, 120, 300, 60, 240]
             #ang_center_diffs = [0-ang_1, 180-ang_1, 120-ang_2, 300-ang_2, 60-ang_3, 240-ang_3]
             
-            ang_centers = [[36, 216], [108, 288],  [0, 180], [72, 252], [144, 324]]
+            ang_centers = [[36, 216], [108, 288],  [0, 180], [72, 252], [144, 324], [360, 180]]
             ang_center_diffs = [min([abs(c[0] - ang_0), abs(c[1] - ang_0)]) for c in ang_centers]
             ang_min_diff = min(ang_center_diffs)
             index_best = ang_center_diffs.index(ang_min_diff)
-            ang_best = ang_centers[index_best]
+            over_180 = ang_0 > 180
+            
+            print(f'Over 180 degrees: {over_180}')
+            
             #if ang_best > 145: ang_best += 10
 
             # +10 degree offset needed for ang_2 and ang_3 when above 180 degrees
             
             print(f'first angle = {ang_0} degrees') 
 
-            if index_best == 4:
+            ang_best = ang_centers[index_best]
+
+            if index_best == 5:
+                index_best = 2
+                index_next = 3
+            elif index_best == 4:
                 index_next = 0
             else:
                 index_next = index_best + 1
+                
+
+            # index_best = 2
+            # index_next = 3
 
             doa_data_1 = kraken.music([index_best, index_next])
             doa_data_1 = np.divide(np.abs(doa_data_1), np.max(np.abs(doa_data_1)))
             ang_1 = np.argmax(doa_data_1)
 
 
+            # if over_180: 
+            #     print('trace 0')
+            #     if ang_1 > 180:
+            #         print('trace 1')
+            #         diff = ang_1 - ang_best[1] 
+            #         ang_1 = ang_1 -180 + 2*diff
+            #         print(f'diff = {diff}') 
+            # elif ang_1 < 180:
+            #     print('trace 2')
+            #     diff = ang_1 - ang_best[0] 
+            #     ang_1 = ang_1 +180 - 2*diff
+            #     print(f'diff = {diff}')
+                
+
             doa_datas = [doa_data, doa_data_1]
-
-            # # ang_1 is best
-            # if index_best < 2:    
-            #     ang_avg = sum([ang_2, ang_3])/2
-            #     semi_circles = [abs(ang_avg), abs(180-ang_avg)]
-            #     array_best = 1
-
-            # # ang_3 is best
-            # elif index_best > 3:
-            #     ang_avg = sum([ang_1, ang_2])/2
-            #     semi_circles = [abs(60-ang_avg), abs(240-ang_avg)]
-            #     array_best = 3
-            #     print('trace')
-
-            # # ang_2 is best# ang_2 is best
-            # else:
-            #     ang_avg = sum([ang_1, ang_3])/2
-            #     semi_circles = [abs(120-ang_avg), abs(300-ang_avg)]
-            #     array_best = 2
-                
-            # if semi_circles[1] < semi_circles[0]:
-                
-            #     if abs(ang_roofs[index_best] - ang_best) < abs(ang_floors[index_best] - ang_best):
-            #         print('trace3')
-            #         ang_delta = ang_roofs[index_best] - ang_best
-            #         ang_best = ang_best - 180 - 2*ang_delta + 10
-            #         print(f'ang_delta = {ang_delta}')
-            # elif abs(ang_roofs[index_best] - ang_best) > abs(ang_floors[index_best] - ang_best):
-            #     print('trace2')
-            #     print(f'ang_c2 {ang_roofs[index_best]}')
-            #     ang_delta = ang_floors[index_best] - ang_best
-            #     ang_best = ang_best + 180 + 2*ang_delta
-            #     print(f'ang_delta = {ang_delta}')
-
-            # print(f'c0 = {semi_circles[0]}')
-            # print(f'c1 = {semi_circles[1]}')
-            # print(f'avg = {ang_avg}')
-
 
             print(f'antennas used = {index_best, index_next}') 
             print(f'best angle = {ang_best} degrees') 

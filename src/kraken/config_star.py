@@ -58,8 +58,8 @@ ant3 = [-0.8090,   -0.5878]
 ant4 = [0.3090,   -0.9511]
 y = np.array([ant0[1], ant1[1], ant2[1], ant3[1], ant4[1]])
 x = np.array([ant0[0], ant1[0], ant2[0], ant3[0], ant4[0]])
-antenna_distance =  0.15
-#antenna_distance = antenna_distance / 2.0 / np.sin(36.0*np.pi/180.0)
+antenna_distance =  0.35
+antenna_distance = antenna_distance / 2.0 / np.sin(36.0*np.pi/180.0)
 
 detection_range = 360
                                   
