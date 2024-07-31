@@ -1,9 +1,6 @@
 import numpy as np
 from numpy import linalg as lin
 from numba import njit
-from functools import lru_cache
-from scipy.linalg import toeplitz
-import scipy
 
 #This file contains numba optimized code from the pyargus library
 
