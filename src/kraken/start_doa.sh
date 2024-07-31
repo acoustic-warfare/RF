@@ -3,7 +3,7 @@
 eval "$(conda shell.bash hook)"
 conda activate kraken
 
-PYTHON_EXECUTABLE="$(which python3)"
+PYTHON_EXECUTABLE="$(which python)"
 
 "$PYTHON_EXECUTABLE" config.py
 

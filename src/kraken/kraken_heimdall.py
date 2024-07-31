@@ -44,7 +44,6 @@ class KrakenReceiver():
             filemode='w'  
         )
 
-        self.streamer = RtmpStreamer(1280, 720)
         self.logger = logging.getLogger(__name__)
 
         center_freq, num_samples, sample_rate, antenna_distance, x, y, array_type, f_type, waraps = read_kraken_config()
@@ -334,6 +333,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         super().__init__()
         
         self.initUI()
+        self.streamer = RtmpStreamer(1280, 720)
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self.update_plots)
         self.timer.start(0)

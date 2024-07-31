@@ -101,6 +101,6 @@ x = np.array([ant0[0], ant1[0], ant2[0], ant3[0], ant4[0]])
 antenna_distance =  0.35
 antenna_distance = antenna_distance / 2.0 / np.sin(36.0*np.pi/180.0)
 
-waraps = False
+waraps = True
 
 kraken_config(center_freq, num_samples, sample_rate, antenna_distance, x, y, 'UCA', 'FIR', waraps)
