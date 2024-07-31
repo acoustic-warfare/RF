@@ -221,7 +221,7 @@ class KrakenReceiver():
             self.iq_samples = signal.lfilter(self.filter, 1.0, self.iq_samples)
 
 
-    def music(self, index = [0, 1, 2, 3, 4], angle_offs = 0):
+    def music(self, index = [0, 1, 2, 3, 4]):
         """
         Performs Direction of Arrival (DOA) estimation using the MEM algorithm.
 
@@ -238,11 +238,70 @@ class KrakenReceiver():
 
         spatial_corr_matrix = de.spatial_correlation_matrix(buffer, self.num_samples)
        
-        scanning_vectors = de.gen_scanning_vectors(buffer_dim, x, y, np.arange(angle_offs, self.detection_range + angle_offs))
+        scanning_vectors = de.gen_scanning_vectors(buffer_dim, x, y, np.arange(0, self.detection_range))
         sig_dim = 1
         doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, sig_dim)
         
         return doa
+    
+
+    def placeholder(self, doa_data):
+            ang_0 = np.argmax(doa_data)
+            print(f'first angle = {ang_0} degrees') 
+
+            # Makes reference list for the optimal recieving angles for each antenna pair. 
+            # The last and second-to-last index belongs to the same antenna pair.
+            ang_centers = [[72, 252], [144, 324], [36, 216], [108, 288], [0, 180], [360, 180]] 
+           
+            # Finds the optimal antenna pair for the current angle.
+            ang_center_diffs = [min([abs(c[0] - ang_0), abs(c[1] - ang_0)]) for c in ang_centers]
+            ang_min_diff = min(ang_center_diffs)
+            index_best = ang_center_diffs.index(ang_min_diff)
+            ang_best = ang_centers[index_best]
+            print(f'best angles = {ang_best} degrees') 
+
+            #Selects which antennas to use based on the previosly derived optimal antenna pair.
+            if index_best == 5:
+                index_best = 4
+                index_next = 1
+            elif index_best > 2:
+                index_next = index_best - 3
+            else:
+                index_next = index_best + 2
+
+            # index_next = (index_best + 2) % 6 if index_best <= 2 else (index_best - 3)
+            # if index_best == 5:
+            #     index_best, index_next = 4, 1
+
+            print(f'antennas used = {index_best, index_next}') 
+
+            # Preforms a percise DOA approximation using the most optimal pair of antennas.
+            doa_data_1 = kraken.music([index_best, index_next])
+            doa_data_1 = np.divide(np.abs(doa_data_1), np.max(np.abs(doa_data_1)))            
+
+            # Finds which side of the semi circle that contains the true angle.
+            bottom_half =  abs(ang_best[0] - ang_0) > abs(ang_best[1] - ang_0)
+            print(f'Left half-plane: {bottom_half}')
+
+            # Removes the un-true (mirrored) DOA-angle
+            if bottom_half:
+                ang_worst = ang_best[0]
+            else:
+                ang_worst = ang_best[1]
+                
+            if ang_worst < 90: 
+                doa_data_1[ang_worst +270 : ] = 0.0
+                doa_data_1[ : ang_worst +90] = 0.0
+            elif ang_worst > 270: 
+                doa_data_1[ : ang_worst -270] = 0.0
+                doa_data_1[ang_worst -90 : ] = 0.0
+            else:
+                doa_data_1[ang_worst -90 : ang_worst +90] = 0.0
+
+            # Prints and plots the resulting DOA-angle
+            ang_1 = np.argmax(doa_data_1)
+            print(f'angle = {ang_1} degrees')
+            return doa_data_1
 
     def record_samples(self):
         if self.file:
@@ -312,7 +371,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.doa_curve_2 = None
         self.doa_curve_3 = None
         self.doa_curves = [self.doa_curve, self.doa_curve_2]
-        self.color_list = ['green', 'dark green']
+        self.color_list = ['blue', 'red']
         
 
     def create_polar_grid(self):
@@ -403,58 +462,9 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             # Preforms the broad DOA approximation using all antennas.
             doa_data = kraken.music()
             doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
-            ang_0 = np.argmax(doa_data)
-            print(f'first angle = {ang_0} degrees') 
-
-            # Makes reference list for the optimal recieving angles for each antenna pair. The last and second-to-last index belongs to the same antenna pair.
-            ang_centers = [[72, 252], [144, 324], [36, 216], [108, 288], [0, 180], [360, 180]] 
-            
-            # Finds the optimal antenna pair for the current angle.
-            ang_center_diffs = [min([abs(c[0] - ang_0), abs(c[1] - ang_0)]) for c in ang_centers]
-            ang_min_diff = min(ang_center_diffs)
-            index_best = ang_center_diffs.index(ang_min_diff)
-            ang_best = ang_centers[index_best]
-            print(f'best angles = {ang_best} degrees') 
-
-            # Selects which antennas to use based on the previosly derived optimal antenna pair.
-            if index_best == 5:
-                index_best = 4
-                index_next = 1
-            elif index_best > 2:
-                index_next = index_best - 3
-            else:
-                index_next = index_best + 2
-
-            print(f'antennas used = {index_best, index_next}') 
-
-            # Preforms a percise DOA approximation using the most optimal pair of antennas.
-            doa_data_1 = kraken.music([index_best, index_next])
-            doa_data_1 = np.divide(np.abs(doa_data_1), np.max(np.abs(doa_data_1)))            
-
-            # Finds which side of the semi circle that contains the true angle.
-            bottom_half =  abs(ang_best[0] - ang_0) > abs(ang_best[1] - ang_0)
-            print(f'Left half-plane: {bottom_half}')
-
-            # Removes the un-true (mirrored) DOA-angle
-            if bottom_half:
-                ang_worst = ang_best[0]
-            else:
-                ang_worst = ang_best[1]
-                
-            if ang_worst < 90: 
-                doa_data_1[ang_worst +270 : ] = 0.0
-                doa_data_1[ : ang_worst +90] = 0.0
-            elif ang_worst > 270: 
-                doa_data_1[ : ang_worst -270] = 0.0
-                doa_data_1[ang_worst -90 : ] = 0.0
-            else:
-                doa_data_1[ang_worst -90 : ang_worst +90] = 0.0
-
-            # Prints and plots the resulting DOA-angle
-            ang_1 = np.argmax(doa_data_1)
-            print(f'angle = {ang_1} degrees') 
-            doa_datas = [doa_data_1]
-            # doa_datas = [doa_data_1, doa_data]
+        
+            doa_data_1 = kraken.placeholder(doa_data)
+            doa_datas = [doa_data_1, doa_data]
             self.plot_doa_circle(doa_datas)
             
             # Plots the FFT

@@ -11,7 +11,7 @@ services:
       environment:
         - DISPLAY=${DISPLAY}
       volumes: #Mounting these volumes allows us to avoid building kfr inside the container
-               #Docker does not support wildcard matching and we do not want to mount the whole /usr/local/lib dir
+               #Docker does not support wildcard matching and we do not want to mount the whole /usr/local/lib directory
         - /tmp/.X11-unix:/tmp/.X11-unix
         - /usr/local/lib/libkfr_capi_avx2.a:/usr/local/lib/libkfr_capi_avx2.a
         - /usr/local/lib/libkfr_capi_avx2_pic.a:/usr/local/lib/libkfr_capi_avx2_pic.a
