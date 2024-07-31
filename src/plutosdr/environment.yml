@@ -1,0 +1,31 @@
+name: pluto
+channels:
+  - defaults
+dependencies:
+  - python=3.10
+  - numpy 
+  - scipy
+  - scikit-rf=1.1.0
+  - numba
+  - conda-forge::pyadi-iio
+  - qt 
+  - pyqt 
+  - pyqtgraph
+  - glib
+  - conda-forge::pygobject 
+  - pyzmq
+  - cairo
+  - pycairo
+  - opencv 
+  - gstreamer
+  - gst-plugins-good
+  - gst-plugins-bad
+  - gst-plugins-ugly
+  - gst-libav
+  - gst-plugins-base            
+  - h5py
+  - libopencv
+  - py-opencv
+  - x264
+  - libxcb
+  - pylibiio

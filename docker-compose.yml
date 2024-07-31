@@ -26,3 +26,15 @@ services:
         - /usr/local/lib/libkfr_capi_sse41_pic.a:/usr/local/lib/libkfr_capi_sse41_pic.a
         - /usr/include/kfr/capi.h:/usr/include/kfr/capi.h
       privileged: true
+      
+  pluto-app:
+      build:
+        context: ./src/plutosdr
+        dockerfile: Dockerfile.pluto
+      ports:
+        - "1935:1935"
+      environment:
+        - DISPLAY=${DISPLAY}
+      volumes: 
+          - /tmp/.X11-unix:/tmp/.X11-unix
+      privileged: true
