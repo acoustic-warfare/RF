@@ -9,6 +9,20 @@ RUN apt-get update && apt-get install -y \
     lsof \
     libgl1-mesa-glx \
     nano \
+    libx11-xcb1 \
+    libxcb1 \
+    libxcb-keysyms1 \
+    libxcb-image0 \
+    libxcb-shm0 \
+    libxcb-icccm4 \
+    libxcb-sync1 \
+    libxcb-xfixes0 \
+    libxcb-shape0 \
+    libxcb-randr0 \
+    libxcb-render-util0 \
+    libxcb-xinerama0 \
+    libxcb-xkb1 \
+    libxkbcommon-x11-0 \
     libzmq3-dev \
     libusb-1.0-0 \
     libglib2.0-dev \
@@ -44,6 +58,8 @@ RUN apt-get update && apt-get install -y \
     gstreamer1.0-pulseaudio && \
     rm -rf /var/lib/apt/lists/*
 
+    
+
 # Set the working directory in the container
 WORKDIR /src/plutosdr
 
@@ -51,7 +67,7 @@ WORKDIR /src/plutosdr
 COPY environment.yml .
 
 # Create the conda environment
-RUN mamba env create -f environment.yml
+RUN conda env create -f environment.yml
 
 # Ensure the environment is activated
 SHELL ["conda", "run", "-n", "pluto", "/bin/bash", "-c"]
@@ -59,7 +75,5 @@ SHELL ["conda", "run", "-n", "pluto", "/bin/bash", "-c"]
 # Copy the rest of the application code into the container
 COPY . .
 
-ENTRYPOINT [ "python3 QtSpectrogram.py" ]
-
 # Run the Spectrogram
-#CMD ["python3", "./QtSpectrogram.py"]
+CMD ["conda", "run", "-n", "pluto", "python", "./QtSpectrogram.py"]
