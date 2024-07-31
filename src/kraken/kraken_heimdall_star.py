@@ -232,26 +232,15 @@ class KrakenReceiver():
 
         x = np.array([self.x[i] for i in index])
         y = np.array([self.y[i] for i in index])
-        # print(f' x = {x}')
-        # print(f' y = {y}')
-    
-        # x = [np.float64(0.0), np.float64(0.35), np.float64(0.175)]
-        #y = [np.float64(0.0), np.float64(0.0), np.float64(0.247)]
-        # x = [0.0, 0.35, 0.175]
-        # y = [0.0, 0.0, 0.247]
-        buffer = np.array([self.iq_samples[i] for i in index]) #self.iq_samples[1]].pop()
-        buffer_dim = len(x)
-        # print(f'buffer_dim = {buffer_dim}')
 
-        #smoothed_buffer = self.spatial_smoothing_rewrite(2, 'forward-backward')
-        #spatial_corr_matrix = np.dot(smoothed_buffer, smoothed_buffer.conj().T)
+        buffer = np.array([self.iq_samples[i] for i in index])
+        buffer_dim = len(x)
+
         spatial_corr_matrix = de.spatial_correlation_matrix(buffer, self.num_samples)
-        #spatial_corr_matrix = de.forward_backward_avg(spatial_corr_matrix)
-        # scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
+       
         scanning_vectors = de.gen_scanning_vectors(buffer_dim, x, y, np.arange(angle_offs, self.detection_range + angle_offs))
-        sig_dim = 1 #de.infer_signal_dimension(spatial_corr_matrix)
+        sig_dim = 1
         doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, sig_dim)
-        #print(f'doa_max = {np.argmax(doa)}')
         
         return doa
 
@@ -369,9 +358,6 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         """
         rad_limit = np.radians(kraken.detection_range)
         
-        cal = 0 #np.radians(10)
-        cal_2 = 0 # np.radians(-7)
-        
         angles = [None for datas in doa_datas]
         x_values = [None for datas in doa_datas]
         y_values = [None for datas in doa_datas]
@@ -379,7 +365,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
 
         for n, data in enumerate(doa_datas):
 
-            angles[n] = np.linspace(0 + cal, rad_limit + cal, len(data))
+            angles[n] = np.linspace(0, rad_limit, len(data))
         
             x_values[n] = data * np.cos(angles[n])
             y_values[n] = data * np.sin(angles[n])
@@ -395,102 +381,85 @@ class RealTimePlotter(QtWidgets.QMainWindow):
                                                 fillLevel=0, brush= pg.mkBrush(None))
 
 
-    def find_intersection(self, p1_start, angle1, p2_start, angle2):
-        
-        p1_start = np.asarray(p1_start)
-        p2_start = np.asarray(p2_start) 
-        
-        # Convert angles (in degrees) to direction vectors
-        r = np.array([np.sin(np.radians(angle1)), np.cos(np.radians(angle1))])
-        s = np.array([np.sin(np.radians(angle2)), np.cos(np.radians(angle2))])
-        
-        p = p1_start
-        q = p2_start
-        
-        # Calculate the cross products
-        cross_r_s = np.cross(r, s)
-        if cross_r_s == 0:
-            raise ValueError("Lines are parallel and do not intersect.")
-    
-        t = np.cross(q - p, s) / cross_r_s
-        
-        # Calculate the intersection point
-        intersection = p + t * r
-        return intersection
-
-
     def update_plots(self):
-        """
-        Updates the direction of arrival (DOA) and FFT plots with real-time data.
 
-        Reads data from the `kraken` instance using `kraken.read_streams()`.
-        Performs DOA estimation using the MUSIC algorithm, computes FFTs of received signals,
-        and updates the corresponding PlotWidget curves (`doa_curve`, `fft_curve_0`, `fft_curve_1`, `fft_curve_2`).
         """
+        This method processes and visualizes direction-of-arrival (DOA) data using the kraken system.
+
+        1. Retrieves and filters IQ data if the frame type is 0.
+        2. Performs a broad DOA approximation with all antennas and identifies the initial angle (ang_0).
+        3. Determines the optimal antenna pair for precise DOA estimation based on the initial angle.
+        4. Identifies which half of the plane contains the true angle and removes mirrored DOA results.
+        5. Calculates the final DOA angle and visualizes it on a circular plot.
+        6. Computes and plots the FFT of the first antenna's IQ samples.
+        """
+        
         frame_type = kraken.get_iq_online()
         if frame_type == 0:   
 
             kraken.apply_filter()
             #kraken.record_samples()
 
+            # Preforms the broad DOA approximation using all antennas.
             doa_data = kraken.music()
             doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
             ang_0 = np.argmax(doa_data)
+            print(f'first angle = {ang_0} degrees') 
+
+            # Makes reference list for the optimal recieving angles for each antenna pair. The last and second-to-last index belongs to the same antenna pair.
+            ang_centers = [[72, 252], [144, 324], [36, 216], [108, 288], [0, 180], [360, 180]] 
             
-            # ang_centers = [[36, 216], [108, 288], [0, 180], [72, 252], [144, 324], [360, 180]]
-            ang_centers = [[72, 252], [144, 324], [36, 216], [108, 288], [0, 180], [360, 180]]
+            # Finds the optimal antenna pair for the current angle.
             ang_center_diffs = [min([abs(c[0] - ang_0), abs(c[1] - ang_0)]) for c in ang_centers]
             ang_min_diff = min(ang_center_diffs)
             index_best = ang_center_diffs.index(ang_min_diff)
-
             ang_best = ang_centers[index_best]
-            left_half =  abs(ang_best[0] - ang_0) > abs(ang_best[1] - ang_0)
-            print(f'Left half-plane: {left_half}')
-            print(f'first angle = {ang_0} degrees') 
+            print(f'best angles = {ang_best} degrees') 
 
+            # Selects which antennas to use based on the previosly derived optimal antenna pair.
             if index_best == 5:
                 index_best = 4
                 index_next = 1
-            elif index_best == 4:
-                index_next = 1
-            elif index_best == 3:
-                index_next = 0
+            elif index_best > 2:
+                index_next = index_best - 3
             else:
                 index_next = index_best + 2
 
             print(f'antennas used = {index_best, index_next}') 
-            print(f'best angle = {ang_best} degrees') 
 
+            # Preforms a percise DOA approximation using the most optimal pair of antennas.
             doa_data_1 = kraken.music([index_best, index_next])
             doa_data_1 = np.divide(np.abs(doa_data_1), np.max(np.abs(doa_data_1)))            
 
-            if left_half:
+            # Finds which side of the semi circle that contains the true angle.
+            bottom_half =  abs(ang_best[0] - ang_0) > abs(ang_best[1] - ang_0)
+            print(f'Left half-plane: {bottom_half}')
+
+            # Removes the un-true (mirrored) DOA-angle
+            if bottom_half:
                 ang_worst = ang_best[0]
             else:
                 ang_worst = ang_best[1]
-
+                
             if ang_worst < 90: 
                 doa_data_1[ang_worst +270 : ] = 0.0
                 doa_data_1[ : ang_worst +90] = 0.0
-
             elif ang_worst > 270: 
                 doa_data_1[ : ang_worst -270] = 0.0
                 doa_data_1[ang_worst -90 : ] = 0.0
-
             else:
                 doa_data_1[ang_worst -90 : ang_worst +90] = 0.0
 
-
+            # Prints and plots the resulting DOA-angle
             ang_1 = np.argmax(doa_data_1)
             print(f'angle = {ang_1} degrees') 
-
             doa_datas = [doa_data_1]
             # doa_datas = [doa_data_1, doa_data]
+            self.plot_doa_circle(doa_datas)
             
+            # Plots the FFT
             freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.daq_sample_rate)  
             ant0 = np.abs(fft(kraken.iq_samples[0]))
-            
-            self.plot_doa_circle(doa_datas)
             self.fft_curve_0.setData(freqs, ant0)
 
 
