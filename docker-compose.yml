@@ -10,6 +10,19 @@ services:
         - "1935:1935"
       environment:
         - DISPLAY=${DISPLAY}
-      volumes:
+      volumes: #Mounting these volumes allows us to avoid building kfr inside the container
+               #Docker does not support wildcard matching and we do not want to mount the whole /usr/local/lib dir
         - /tmp/.X11-unix:/tmp/.X11-unix
+        - /usr/local/lib/libkfr_capi_avx2.a:/usr/local/lib/libkfr_capi_avx2.a
+        - /usr/local/lib/libkfr_capi_avx2_pic.a:/usr/local/lib/libkfr_capi_avx2_pic.a
+        - /usr/local/lib/libkfr_capi_avx512.a:/usr/local/lib/libkfr_capi_avx512.a
+        - /usr/local/lib/libkfr_capi_avx512_pic.a:/usr/local/lib/libkfr_capi_avx512_pic.a
+        - /usr/local/lib/libkfr_capi_avx.a:/usr/local/lib/libkfr_capi_avx.a
+        - /usr/local/lib/libkfr_capi.so:/usr/local/lib/libkfr_capi.so
+        - /usr/local/lib/libkfr_capi_avx_pic.a:/usr/local/lib/libkfr_capi_avx_pic.a
+        - /usr/local/lib/libkfr_capi_sse2.a:/usr/local/lib/libkfr_capi_sse2.a
+        - /usr/local/lib/libkfr_capi_sse2_pic.a:/usr/local/lib/libkfr_capi_sse2_pic.a
+        - /usr/local/lib/libkfr_capi_sse41.a:/usr/local/lib/libkfr_capi_sse41.a
+        - /usr/local/lib/libkfr_capi_sse41_pic.a:/usr/local/lib/libkfr_capi_sse41_pic.a
+        - /usr/include/kfr/capi.h:/usr/include/kfr/capi.h
       privileged: true

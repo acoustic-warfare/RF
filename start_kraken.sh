@@ -49,4 +49,4 @@ fi
 xhost +local:docker
 
 # Starting the container
-docker-compose up kraken-app
+docker-compose up --build kraken-app 
