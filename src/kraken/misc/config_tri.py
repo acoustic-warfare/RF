@@ -6,7 +6,7 @@ def write_list_to_config():
 
 def kraken_config(center_freq, num_samples, sample_rate, antenna_distance, x, y, f_type, detection_range):
     config = configparser.ConfigParser()
-    config.read('heimdall_daq_fw/Firmware/daq_chain_config.ini')
+    config.read('../heimdall_daq_fw/Firmware/daq_chain_config.ini')
 
     config.set('daq', 'center_freq', str(center_freq))
     config.set('daq', 'sample_rate', str(sample_rate))
@@ -19,12 +19,12 @@ def kraken_config(center_freq, num_samples, sample_rate, antenna_distance, x, y,
     config.set('variables', 'x', ','.join(map(str, x)))
     config.set('variables', 'y', ','.join(map(str, y)))
 
-    with open('heimdall_daq_fw/Firmware/daq_chain_config.ini', 'w') as configfile:
+    with open('../heimdall_daq_fw/Firmware/daq_chain_config.ini', 'w') as configfile:
         config.write(configfile)
 
 def read_kraken_config():
     config = configparser.ConfigParser()
-    config.read('heimdall_daq_fw/Firmware/daq_chain_config.ini')
+    config.read('../heimdall_daq_fw/Firmware/daq_chain_config.ini')
 
     center_freq = config.getint('daq', 'center_freq')
     sample_rate = config.getint('daq', 'sample_rate')

@@ -6,7 +6,7 @@ conda activate kraken
 
 PYTHON_EXECUTABLE="$(which python3)"
 
-sudo "$PYTHON_EXECUTABLE" config.py
+sudo "$PYTHON_EXECUTABLE" config_tri.py
 
 # Clear pycache before starting if the -c flag is given
 while getopts c flag
@@ -18,8 +18,8 @@ done
 
 ./stop_doa.sh
 
-cd heimdall_daq_fw/Firmware
+cd ../heimdall_daq_fw/Firmware
 sudo env "PATH=$PATH" ./daq_start_sm.sh
-cd ../../../kraken
+cd ../../../kraken/misc
 
 sudo "$PYTHON_EXECUTABLE" kraken_heimdall_tri.py

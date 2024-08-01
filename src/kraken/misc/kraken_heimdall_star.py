@@ -2,6 +2,8 @@ import os
 import numpy as np
 import h5py
 import sys
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+sys.path.append(parent_dir)
 import socket
 import scipy.signal as signal
 import direction_estimation as de
@@ -12,7 +14,7 @@ from struct import pack
 from PyQt5 import QtWidgets
 from pyqtgraph.Qt import QtCore
 from scipy.fft import fft
-from kraken.misc.config_star import read_kraken_config
+from config_star import read_kraken_config
 from datetime import datetime
 from shmemIface import inShmemIface
 from iq_header import IQHeader
@@ -34,7 +36,7 @@ class KrakenReceiver():
 
         #Shared memory setup
         root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
-        daq_path = os.path.join(os.path.dirname(root_path), "RF/src/kraken/heimdall_daq_fw")
+        daq_path = os.path.join(os.path.dirname(root_path), "src/kraken/heimdall_daq_fw")
         self.daq_shmem_control_path = os.path.join(os.path.join(daq_path, "Firmware"), "_data_control/")
         self.init_data_iface()
 
