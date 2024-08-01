@@ -33,6 +33,8 @@ def kraken_config(center_freq, num_samples, sample_rate, antenna_distance,
     config.set('daq', 'gain', str(gain))
     config.set('daq', 'daq_buffer_size', str(num_samples))
     config.set('pre_processing', 'cpi_size', str(num_samples))
+    config.set('pre_processing', 'fir_tap_size', str(51))
+    config.set('pre_processing', 'fir_relative_bandwidth', str(0.1))
     config.set('variables', 'f_type', f_type)
     config.set('variables', 'x', ','.join(map(str, x)))
     config.set('variables', 'y', ','.join(map(str, y)))
@@ -102,7 +104,7 @@ ant4 = [0.3090,   -0.9511]
 y = np.array([ant0[1], ant1[1], ant2[1], ant3[1], ant4[1]])
 x = np.array([ant0[0], ant1[0], ant2[0], ant3[0], ant4[0]])
 antenna_distance =  0.35
-antenna_distance = antenna_distance / 2.0 / np.sin(36.0*np.pi/180.0)
+antenna_distance = antenna_distance / 2.0 / np.sin(72.0*np.pi/180.0)
 
 waraps = False
 

@@ -1,11 +1,15 @@
-import numpy as np
+import os
 import sys
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+sys.path.append(parent_dir)
+import numpy as np
 import scipy.signal as signal
 from scipy.fft import fft
 import direction_estimation as pa
 import pyqtgraph as pg
 from PyQt5 import QtWidgets
 from pyqtgraph.Qt import QtCore
+
 
 
 class KrakenSim():
@@ -103,10 +107,8 @@ class KrakenSim():
             uca = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
             ula = pa.gen_scanning_vectors(self.num_devices, np.array([-2.0, -1.0 ,0.0, 1.0, 2.0]) * antenna_distance_ula, np.array([0.0,0.0,0.0,0.0,0.0]), np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
             self.buffer = phase_mode_transform(ula, uca, self.buffer)
-            
             spatial_corr_matrix = pa.spatial_correlation_matrix(self.buffer, self.num_samples)
-            
-            doa = pa.DOA_MUSIC(spatial_corr_matrix, ula, signal_dimension=signal_dimension)
+            doa = pa.DOA_MUSIC(spatial_corr_matrix, uca, signal_dimension=signal_dimension)
         
         return doa
     
@@ -116,9 +118,43 @@ def whiten_transform(A):
     w = eigenvectors @ np.diag(1.0 / np.sqrt(eigenvalues)) @ eigenvectors.T
     return w @ A @ w.T
 
+#Ta 5 samples i taget
 def phase_mode_transform(ula, uca, data):
     Tr = ula @ uca.T @ np.linalg.pinv(uca @ uca.T)
-    return Tr @ data 
+
+    n = data.shape[1]
+    new_n = (n // 5) * 5
+    
+    # Trim the matrix to be (5, new_n) if necessary
+    trimmed_matrix = data[:, :new_n] if new_n < n else data
+
+    reshaped_matrix = trimmed_matrix.reshape((5, n // 5, 5)).transpose(1, 0, 2)
+    (print(reshaped_matrix.shape))
+    
+    # Apply the transformation to each (5, 5) block
+    transformed_blocks = Tr @ reshaped_matrix @ Tr.T
+    
+    # Reshape back to (5, n)
+    transformed_matrix = transformed_blocks.transpose(1, 0, 2).reshape(5, new_n)
+
+    return transformed_matrix
+
+# def phase_mode_excitation(uca_data, num_modes=5):
+#     M, L = uca_data.shape
+
+#     # Calculate the DFT matrix
+#     F = np.zeros((M, M), dtype=complex)
+#     for m in range(M):
+#         for n in range(M):
+#             F[m, n] = np.exp(-1j * 2 * np.pi * m * n / M) / np.sqrt(M)
+
+#     # Select the first 'num_modes' rows of the DFT matrix
+#     T = F[:num_modes, :]
+
+#     # Apply the transformation
+#     transformed_data = T @ uca_data
+
+#     return transformed_data
 
 
 def signals_linear(frequencies, angles, num_sensors, num_snapshots, antenna_positions, wavelength=1.0, noise_power=1e1):
@@ -491,7 +527,7 @@ if __name__ == '__main__':
         ant4 = [0.3090,   -0.9511]
         y = np.array([ant0[1], ant1[1], ant2[1], ant3[1], ant4[1]])
         x = np.array([ant0[0], ant1[0], ant2[0], ant3[0], ant4[0]])
-        antenna_distance =  0.175
+        antenna_distance =  0.35
         antenna_distance = antenna_distance / 2.0 / np.sin(36.0*np.pi/180.0) # distance = 0.175 -> radius = 0.148857 
     
     else:
@@ -502,7 +538,7 @@ if __name__ == '__main__':
 
     kraken = KrakenSim(center_freq, num_samples, sample_rate, gain,    
                             antenna_distance, x, y, "UCA", num_devices = 5, circular = circular,
-                            simulation_angles = [110], simulation_frequencies = [center_freq], simulation_noise = 1e1,
+                            simulation_angles = [60], simulation_frequencies = [center_freq], simulation_noise = 1e1,
                             f_type = 'FIR', detection_range = 360, music_dim = 1)
     
     app = QtWidgets.QApplication(sys.argv)
