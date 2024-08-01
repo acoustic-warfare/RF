@@ -6,7 +6,6 @@ dependencies:
   - numpy 
   - scipy
   - scikit-rf=1.1.0
-  - numba
   - conda-forge::pyadi-iio
   - qt 
   - pyqt 
@@ -23,9 +22,6 @@ dependencies:
   - gst-plugins-ugly
   - gst-libav
   - gst-plugins-base            
-  - h5py
-  - libopencv
-  - py-opencv
   - x264
   - libxcb
   - pylibiio
