@@ -101,13 +101,25 @@ class KrakenSim():
             doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=signal_dimension)
         else:
             uca = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
-            ula = pa.gen_scanning_vectors(self.num_devices, np.array([0.0,1.0,2.0,3.0,4.0]) * antenna_distance_ula, np.array([0.0,0.0,0.0,0.0,0.0]), np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
+            ula = pa.gen_scanning_vectors(self.num_devices, np.array([-2.0, -1.0 ,0.0, 1.0, 2.0]) * antenna_distance_ula, np.array([0.0,0.0,0.0,0.0,0.0]), np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
+            self.buffer = phase_mode_transform(ula, uca, self.buffer)
+            
             spatial_corr_matrix = pa.spatial_correlation_matrix(self.buffer, self.num_samples)
-            tr_corr = phase_mode_transform(ula, uca, spatial_corr_matrix)
-            doa = pa.DOA_MUSIC(tr_corr, ula, signal_dimension=signal_dimension)
-        
+            
+            doa = pa.DOA_MUSIC(spatial_corr_matrix, ula, signal_dimension=signal_dimension)
         
         return doa
+    
+
+def whiten_transform(A):
+    eigenvalues, eigenvectors = np.linalg.eig(A)
+    w = eigenvectors @ np.diag(1.0 / np.sqrt(eigenvalues)) @ eigenvectors.T
+    return w @ A @ w.T
+
+def phase_mode_transform(ula, uca, data):
+    Tr = ula @ uca.T @ np.linalg.pinv(uca @ uca.T)
+    return Tr @ data 
+
 
 def signals_linear(frequencies, angles, num_sensors, num_snapshots, antenna_positions, wavelength=1.0, noise_power=1e1):
     """
@@ -462,12 +474,6 @@ class RealTimePlotter(QtWidgets.QMainWindow):
 
         print(np.argmax(doa_data))
 
-
-def phase_mode_transform(ula, uca, corr):
-    Tr = ula @ uca.T @ np.linalg.inv(uca @ uca.T)
-    print(f"{Tr.shape}, {corr.shape}, {(Tr.conj().T).shape} ")
-    return Tr @ corr @ Tr.conj().T
-
 if __name__ == '__main__':
     num_samples = 1024*64 
     sample_rate = 2.048e6
@@ -496,7 +502,7 @@ if __name__ == '__main__':
 
     kraken = KrakenSim(center_freq, num_samples, sample_rate, gain,    
                             antenna_distance, x, y, "UCA", num_devices = 5, circular = circular,
-                            simulation_angles = [20], simulation_frequencies = [center_freq], simulation_noise = 1e1,
+                            simulation_angles = [110], simulation_frequencies = [center_freq], simulation_noise = 1e1,
                             f_type = 'FIR', detection_range = 360, music_dim = 1)
     
     app = QtWidgets.QApplication(sys.argv)
