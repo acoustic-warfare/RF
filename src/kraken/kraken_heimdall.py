@@ -313,6 +313,102 @@ class KrakenReceiver():
             with h5py.File(self.file, 'w') as hf:
                 hf.create_dataset('iq_samples', data=self.iq_samples, maxshape=(self.iq_samples.shape[0], None))
     
+    
+    def selective_music(self, index = [0, 1, 2, 3, 4]):
+        """
+        Performs Direction of Arrival (DOA) estimation using the MEM algorithm.
+        This function also has the option to select which antennas should be used in the approximation with the 'index' -parameter. 
+
+        Takes (optional):
+        array
+            array of int representing the indexes of the antennas to be used in the approximation.
+
+        Returns:
+        numpy.ndarray
+            Array of estimated DOA angles in degrees.
+        """
+
+        x = np.array([self.x[i] for i in index])
+        y = np.array([self.y[i] for i in index])
+        
+        buffer = np.array([self.iq_samples[i] for i in index])
+        buffer_dim = len(index)
+
+        spatial_corr_matrix = de.spatial_correlation_matrix(buffer, self.num_samples)
+        scanning_vectors = de.gen_scanning_vectors(buffer_dim, x, y, np.arange(0, self.detection_range))
+        sig_dim = 1
+        doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, sig_dim)
+        
+        return doa
+    
+    
+    def improved_circle(self, doa_data):
+            """"
+            Used to improve the precision of the circular antenna configuration by preforming 
+            an additional DOA aproximation with the most optimal pair of antennas.
+            
+            1. Recieves the broad DOA approximation with all antennas as doa_data.
+            2. Determines the optimal antenna pair for precise DOA estimation based on the initial angle.
+            3. Identifies which half of the plane contains the true angle and removes mirrored DOA results.
+            4. Calculates and returns the final DOA response.
+            
+            Takes:
+            numpy.ndarray
+            Array of estimated DOA angles in degrees.
+            
+            Returns:
+            numpy.ndarray
+            Array of estimated DOA angles in degrees (But better).
+            
+            """
+            
+            ang_0 = np.argmax(doa_data)
+
+            # Makes reference list for the optimal recieving angles for each antenna pair. 
+            # The last and second-to-last index belongs to the same antenna pair.
+            ang_centers = [[72, 252], [144, 324], [36, 216], [108, 288], [0, 180], [360, 180]] 
+           
+            # Finds the optimal antenna pair for the current angle.
+            ang_center_diffs = [min([abs(c[0] - ang_0), abs(c[1] - ang_0)]) for c in ang_centers]
+            ang_min_diff = min(ang_center_diffs)
+            index_best = ang_center_diffs.index(ang_min_diff)
+            ang_best = ang_centers[index_best]
+
+            #Selects which antennas to use based on the previosly derived optimal antenna pair.
+            if index_best == 5:
+                index_best = 4
+                index_next = 1
+            elif index_best > 2:
+                index_next = index_best - 3
+            else:
+                index_next = index_best + 2
+
+            # Preforms a percise DOA approximation using the most optimal pair of antennas.
+            doa_data_1 = kraken.selective_music([index_best, index_next])
+            doa_data_1 = np.divide(np.abs(doa_data_1), np.max(np.abs(doa_data_1)))            
+
+            # Finds which side of the semi circle that contains the true angle and identifies the un-true (mirrored) DOA-angle   
+            if abs(ang_best[0] - ang_0) > abs(ang_best[1] - ang_0):
+                ang_worst = ang_best[0]
+            else:
+                ang_worst = ang_best[1]
+            
+            # Removes the un-true (mirrored) DOA-angle    
+            if ang_worst < 90: 
+                doa_data_1[ang_worst +270 : ] = 0.0
+                doa_data_1[ : ang_worst +90] = 0.0
+            elif ang_worst > 270: 
+                doa_data_1[ : ang_worst -270] = 0.0
+                doa_data_1[ang_worst -90 : ] = 0.0
+            else:
+                doa_data_1[ang_worst -90 : ang_worst +90] = 0.0
+
+
+            return doa_data_1
+
+    
+    
+    
 class RealTimePlotter(QtWidgets.QMainWindow):
     """
     A PyQt-based GUI window for real-time data visualization of direction of arrival (DOA) and FFT plots.
@@ -510,7 +606,9 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             #kraken.record_samples()
 
             doa_data = kraken.music()
+            doa_data = kraken.improved_circle(doa_data)
             doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
+            
                 
             # freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.daq_sample_rate)  
             # ant0 = np.abs(fft(kraken.iq_samples[0]))
