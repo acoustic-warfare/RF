@@ -2,6 +2,8 @@ import os
 import numpy as np
 import h5py
 import sys
+parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir))
+sys.path.append(parent_dir)
 import socket
 import scipy.signal as signal
 import direction_estimation as de
@@ -29,12 +31,12 @@ class KrakenReceiver():
         self.num_antennas = x.size
         self.f_type = f_type
         self.detection_range = detection_range
-        self.thetas = np.arange(-self.detection_range/2 - 90, self.detection_range/2 - 90)
+        self.thetas = np.arange(0, self.detection_range)
         self.scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, self.thetas)
 
         #Shared memory setup
         root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
-        daq_path = os.path.join(os.path.dirname(root_path), "RF/src/kraken/heimdall_daq_fw")
+        daq_path = os.path.join(os.path.dirname(root_path), "src/kraken/heimdall_daq_fw")
         self.daq_shmem_control_path = os.path.join(os.path.join(daq_path, "Firmware"), "_data_control/")
         self.init_data_iface()
 
@@ -48,6 +50,8 @@ class KrakenReceiver():
         self.ctr_iface_thread_lock = Lock()
         self.ctr_iface_socket.connect(('127.0.0.1', self.ctr_iface_port))
         self.ctr_iface_init()
+
+        print(f'antenna_distance = {antenna_distance}')
 
         if f_type == 'butter':
             #Build digital filter
@@ -219,7 +223,7 @@ class KrakenReceiver():
             self.iq_samples = signal.lfilter(self.filter, 1.0, self.iq_samples)
 
 
-    def music(self, index = [0, None]):
+    def music(self, index = [0, 1, 2, 3, 4]):
         """
         Performs Direction of Arrival (DOA) estimation using the MEM algorithm.
 
@@ -227,40 +231,79 @@ class KrakenReceiver():
         numpy.ndarray
             Array of estimated DOA angles in degrees.
         """
-        
-        buffer = self.iq_samples[index[0]:index[1]]
-        x = self.x[index[0]:index[1]]
-        y = self.y[index[0]:index[1]]
+
+        x = np.array([self.x[i] for i in index])
+        y = np.array([self.y[i] for i in index])
+
+        buffer = np.array([self.iq_samples[i] for i in index])
         buffer_dim = len(x)
 
-        # print(f'buffer_dim = {buffer_dim}')
-        #print(f' x = {x}')
-        #smoothed_buffer = self.spatial_smoothing_rewrite(2, 'forward-backward')
-        #spatial_corr_matrix = np.dot(smoothed_buffer, smoothed_buffer.conj().T)
         spatial_corr_matrix = de.spatial_correlation_matrix(buffer, self.num_samples)
-        spatial_corr_matrix = de.forward_backward_avg(spatial_corr_matrix)
-        # scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
-        scanning_vectors = de.gen_scanning_vectors(buffer_dim, x, y, np.arange(-self.detection_range/2 -90, self.detection_range/2 -90))
-        sig_dim = 1 #de.infer_signal_dimension(spatial_corr_matrix)
+       
+        scanning_vectors = de.gen_scanning_vectors(buffer_dim, x, y, np.arange(0, self.detection_range))
+        sig_dim = 1
         doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, sig_dim)
-        #print(f'doa_max = {np.argmax(doa)}')
         
         return doa
+    
+    #change this name
+    def placeholder(self, doa_data):
+            ang_0 = np.argmax(doa_data)
+            print(f'first angle = {ang_0} degrees') 
 
-    def music_old(self):
-        """
-        Performs Direction of Arrival (DOA) estimation using the MEM algorithm.
+            # Makes reference list for the optimal recieving angles for each antenna pair. 
+            # The last and second-to-last index belongs to the same antenna pair.
+            ang_centers = [[72, 252], [144, 324], [36, 216], [108, 288], [0, 180], [360, 180]] 
+           
+            # Finds the optimal antenna pair for the current angle.
+            ang_center_diffs = [min([abs(c[0] - ang_0), abs(c[1] - ang_0)]) for c in ang_centers]
+            ang_min_diff = min(ang_center_diffs)
+            index_best = ang_center_diffs.index(ang_min_diff)
+            ang_best = ang_centers[index_best]
+            print(f'best angles = {ang_best} degrees') 
 
-        Returns:
-        numpy.ndarray
-            Array of estimated DOA angles in degrees.
-        """
-        spatial_corr_matrix = de.spatial_correlation_matrix(self.iq_samples, self.num_samples)
-        spatial_corr_matrix = de.forward_backward_avg(spatial_corr_matrix)
-        sig_dim = de.infer_signal_dimension(spatial_corr_matrix)
-        doa = de.DOA_MUSIC(spatial_corr_matrix, self.scanning_vectors, sig_dim)
+            #Selects which antennas to use based on the previosly derived optimal antenna pair.
+            if index_best == 5:
+                index_best = 4
+                index_next = 1
+            elif index_best > 2:
+                index_next = index_best - 3
+            else:
+                index_next = index_best + 2
 
-        return doa
+            # index_next = (index_best + 2) % 6 if index_best <= 2 else (index_best - 3)
+            # if index_best == 5:
+            #     index_best, index_next = 4, 1
+
+            print(f'antennas used = {index_best, index_next}') 
+
+            # Preforms a percise DOA approximation using the most optimal pair of antennas.
+            doa_data_1 = kraken.music([index_best, index_next])
+            doa_data_1 = np.divide(np.abs(doa_data_1), np.max(np.abs(doa_data_1)))            
+
+            # Finds which side of the semi circle that contains the true angle.
+            bottom_half =  abs(ang_best[0] - ang_0) > abs(ang_best[1] - ang_0)
+            print(f'Left half-plane: {bottom_half}')
+
+            # Removes the un-true (mirrored) DOA-angle
+            if bottom_half:
+                ang_worst = ang_best[0]
+            else:
+                ang_worst = ang_best[1]
+                
+            if ang_worst < 90: 
+                doa_data_1[ang_worst +270 : ] = 0.0
+                doa_data_1[ : ang_worst +90] = 0.0
+            elif ang_worst > 270: 
+                doa_data_1[ : ang_worst -270] = 0.0
+                doa_data_1[ang_worst -90 : ] = 0.0
+            else:
+                doa_data_1[ang_worst -90 : ang_worst +90] = 0.0
+
+            # Prints and plots the resulting DOA-angle
+            ang_1 = np.argmax(doa_data_1)
+            print(f'angle = {ang_1} degrees')
+            return doa_data_1
 
     def record_samples(self):
         if self.file:
@@ -322,32 +365,16 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.layout.addWidget(self.doa_plot, 0, 0, 1, 1)
         
         self.fft_plot_0 = pg.PlotWidget(title="FFT Antenna 0")
-        self.fft_curve_0 = self.fft_plot_0.plot(pen='r')
+        self.fft_curve_0 = self.fft_plot_0.plot(pen='dark green')
         self.layout.addWidget(self.fft_plot_0, 0, 1, 1, 1)
-        
-        self.fft_plot_1 = pg.PlotWidget(title="FFT Antenna 1")
-        self.fft_curve_1 = self.fft_plot_1.plot(pen='g')
-        self.layout.addWidget(self.fft_plot_1, 1, 0, 1, 1)
-        
-        self.fft_plot_2 = pg.PlotWidget(title="FFT Antenna 2")
-        self.fft_curve_2 = self.fft_plot_2.plot(pen='b')
-        self.layout.addWidget(self.fft_plot_2, 1, 1, 1, 1)
-
-        self.fft_plot_3 = pg.PlotWidget(title="FFT Antenna 3")
-        self.fft_curve_3 = self.fft_plot_3.plot(pen='y')  # Changed to yellow
-        self.layout.addWidget(self.fft_plot_3, 2, 0, 1, 1)
-
-        self.fft_plot_4 = pg.PlotWidget(title="FFT Antenna 4")
-        self.fft_curve_4 = self.fft_plot_4.plot(pen='c')  # Changed to cyan
-        self.layout.addWidget(self.fft_plot_4, 2, 1, 1, 1)
-
-        self.doa_cartesian_plot = pg.PlotWidget(title="Direction of Arrival (Cartesian)")
-        self.doa_cartesian_curve = self.doa_cartesian_plot.plot(pen=pg.mkPen(pg.mkColor(70,220,0), width=2))
-        self.layout.addWidget(self.doa_cartesian_plot, 3, 0, 1, 2)  # Adding Cartesian plot
 
         self.create_polar_grid()
         self.doa_curve = None  # Initialize doa_curve to None
-        self.doa_curve_2 = None  # Initialize doa_curve to None
+        self.doa_curve_2 = None
+        self.doa_curve_3 = None
+        self.doa_curves = [self.doa_curve, self.doa_curve_2]
+        self.color_list = ['blue', 'red']
+        
 
     def create_polar_grid(self):
         """
@@ -370,19 +397,19 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.doa_plot.plot(x, y, pen=pg.mkPen('dark green', width=2))
 
         #Add direction lines (every 20 degrees)
-        for angle in np.linspace(0, rad_limit, 19, endpoint=endpoint):
+        for angle in np.linspace(0, rad_limit, 18, endpoint=endpoint):
             x_line = [0, radius * np.cos(angle)]
             y_line = [0, radius * np.sin(angle)]
             self.doa_plot.plot(x_line, y_line, pen=pg.mkPen('dark green', width=1))
 
         #Add labels (every 20 degrees)
-        for angle in np.linspace(0, rad_limit, 19, endpoint=endpoint):
-            text = f'{int(round(np.degrees(angle-rad_limit/2), -1))}°'
+        for angle in np.linspace(0, rad_limit, 18, endpoint=endpoint):
+            text = f'{int(round(np.degrees(angle), -1))}°'
             text_item = pg.TextItem(text, anchor=(0.5, 0.5))
             text_item.setPos(1.1 * np.cos(angle), 1.1 * np.sin(angle))
             self.doa_plot.addItem(text_item)
 
-    def plot_doa_circle(self, doa_data, doa_data_2):
+    def plot_doa_circle(self, doa_datas):
         """
         Plots the direction of arrival (DOA) circle based on provided DOA data.
         
@@ -392,105 +419,61 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         """
         rad_limit = np.radians(kraken.detection_range)
         
-        cal = 0 #np.radians(10)
-        cal_2 = 0 # np.radians(-7)
-        
-        angles = np.linspace(0 + cal, rad_limit + cal, len(doa_data))
-        angles_2 = np.linspace(0 + cal_2, rad_limit + cal_2, len(doa_data))
-        
-        x_values = doa_data * np.cos(angles)
-        y_values = doa_data * np.sin(angles)
-        x_values_2 = doa_data_2 * np.cos(angles_2)
-        y_values_2 = doa_data_2 * np.sin(angles_2)
+        angles = [None for datas in doa_datas]
+        x_values = [None for datas in doa_datas]
+        y_values = [None for datas in doa_datas]
+        self.doa_curve = [None for datas in doa_datas]
 
-        #Close the polar plot loop
-        x_values = np.append(x_values, [0])
-        y_values = np.append(y_values, [0])
-        x_values_2 = np.append(x_values_2, [0])
-        y_values_2 = np.append(y_values_2, [0])
+        for n, data in enumerate(doa_datas):
 
-        if self.doa_curve is not None:
-            self.doa_plot.removeItem(self.doa_curve)
-        if self.doa_curve_2 is not None:
-            self.doa_plot.removeItem(self.doa_curve_2)
+            angles[n] = np.linspace(0, rad_limit, len(data))
+        
+            x_values[n] = data * np.cos(angles[n])
+            y_values[n] = data * np.sin(angles[n])
+            
+            #Close the polar plot loop
+            x_values[n] = np.append(x_values[n], [0])
+            y_values[n] = np.append(y_values[n], [0])
 
-        self.doa_curve = self.doa_plot.plot(x_values, y_values, pen=pg.mkPen(pg.mkColor(70,220,0), width=2), 
-                                            fillLevel=0, brush=(255, 255, 0, 50))
+            if self.doa_curves[n] is not None:
+                self.doa_plot.removeItem(self.doa_curves[n])
 
-        self.doa_curve_2 = self.doa_plot.plot(x_values_2, y_values_2, pen=pg.mkPen(pg.mkColor(255,0,0), width=2), 
-                                            fillLevel=0, brush=(255, 255, 0, 50))
-
-    import numpy as np
-
-    def find_intersection(self, p1_start, angle1, p2_start, angle2):
-        
-        p1_start = np.asarray(p1_start)
-        p2_start = np.asarray(p2_start) 
-        
-        # Convert angles (in degrees) to direction vectors
-        r = np.array([np.sin(np.radians(angle1)), np.cos(np.radians(angle1))])
-        s = np.array([np.sin(np.radians(angle2)), np.cos(np.radians(angle2))])
-        
-        p = p1_start
-        q = p2_start
-        
-        # Calculate the cross products
-        cross_r_s = np.cross(r, s)
-        if cross_r_s == 0:
-            raise ValueError("Lines are parallel and do not intersect.")
-        
-        t = np.cross(q - p, s) / cross_r_s
-        
-        # Calculate the intersection point
-        intersection = p + t * r
-        return intersection
+            self.doa_curves[n] = self.doa_plot.plot(x_values[n], y_values[n], pen=pg.mkPen(self.color_list[n], width = 2), 
+                                                fillLevel=0, brush= pg.mkBrush(None))
 
 
     def update_plots(self):
-        """
-        Updates the direction of arrival (DOA) and FFT plots with real-time data.
 
-        Reads data from the `kraken` instance using `kraken.read_streams()`.
-        Performs DOA estimation using the MUSIC algorithm, computes FFTs of received signals,
-        and updates the corresponding PlotWidget curves (`doa_curve`, `fft_curve_0`, `fft_curve_1`, `fft_curve_2`).
         """
+        This method processes and visualizes direction-of-arrival (DOA) data using the kraken system.
+
+        1. Retrieves and filters IQ data if the frame type is 0.
+        2. Performs a broad DOA approximation with all antennas and identifies the initial angle (ang_0).
+        3. Determines the optimal antenna pair for precise DOA estimation based on the initial angle.
+        4. Identifies which half of the plane contains the true angle and removes mirrored DOA results.
+        5. Calculates the final DOA angle and visualizes it on a circular plot.
+        6. Computes and plots the FFT of the first antenna's IQ samples.
+        """
+        
         frame_type = kraken.get_iq_online()
         if frame_type == 0:   
 
             kraken.apply_filter()
             #kraken.record_samples()
 
+            # Preforms the broad DOA approximation using all antennas.
             doa_data = kraken.music()
             doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
-            doa_data_2 = kraken.music()
-            doa_data_2 = np.divide(np.abs(doa_data_2), np.max(np.abs(doa_data_2)))
-                
+        
+            doa_data_1 = kraken.placeholder(doa_data)
+            doa_datas = [doa_data_1, doa_data]
+            self.plot_doa_circle(doa_datas)
+            
+            # Plots the FFT
             freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.daq_sample_rate)  
             ant0 = np.abs(fft(kraken.iq_samples[0]))
-            ant1 = np.abs(fft(kraken.iq_samples[1]))
-            ant2 = np.abs(fft(kraken.iq_samples[2]))
-            ant3 = np.abs(fft(kraken.iq_samples[3]))
-            ant4 = np.abs(fft(kraken.iq_samples[4]))  
-                
-            self.plot_doa_circle(doa_data, doa_data_2)
             self.fft_curve_0.setData(freqs, ant0)
-            self.fft_curve_1.setData(freqs, ant1)
-            self.fft_curve_2.setData(freqs, ant2)
-            self.fft_curve_3.setData(freqs, ant3)
-            self.fft_curve_4.setData(freqs, ant4)
-            self.doa_cartesian_curve.setData(np.linspace(0, len(doa_data), len(doa_data)), doa_data)
 
-
-            ang_1 = np.argmax(doa_data) -87 #+7
-            ang_2 = np.argmax(doa_data_2) -87 #-10
-            #point = self.find_intersection([-0.175, 0], ang_1, [0.175, 0], ang_2)
-            #distance = np.sqrt(point[0]**2 + point[1]**2)
-            print(f'ang_1 = {ang_1} degrees') 
-            print(f'ang_2 = {ang_2} degrees')
-            # print(f'doa_1 = {np.argmax(doa_data) - 90} degrees') 
-            # print(f'doa_2 = {np.argmax(doa_data_2) - 90} degrees')
-            # print(f'point of intersection = {point}') 
-            # print(f'distance = {distance} meters')
 
         elif frame_type == 1:
             print("Received Dummy frame")

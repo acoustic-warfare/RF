@@ -2,6 +2,13 @@ import sys
 import pyqtgraph as pg
 from PyQt5 import QtWidgets, QtCore
 import numpy as np
+import gi
+import os
+os.environ['GST_DEBUG'] = "3" #Uncomment to enable GST debug logs
+gi.require_version('Gst', '1.0')
+gi.require_version('GLib', '2.0')
+from gi.repository import Gst, GLib
+import time
 import adi
 import numpy as np
 from pyqtgraph.Qt import QtGui
@@ -109,6 +116,65 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         
         self.initUI()
 
+        if waraps:
+            Gst.init(None)
+
+
+            self.pipeline = Gst.parse_launch(
+                " appsrc name=spectrogram is_live=true block=true format=GST_FORMAT_TIME caps=video/x-raw,width=1280,format=RGB,height=720 "
+                " ! videoconvert ! x264enc tune=zerolatency speed-preset=superfast bitrate=2500"
+                " ! queue ! flvmux streamable=true ! rtmp2sink location=rtmp://ome.waraps.org/app/PlutoSDR"
+                )
+            
+            self.appsrc = self.pipeline.get_by_name('spectrogram')
+            self.start_time = time.time()
+            ret = self.pipeline.set_state(Gst.State.PLAYING)
+            if ret == Gst.StateChangeReturn.FAILURE:
+                raise RuntimeError("Unable to set the pipeline to the playing state.")
+
+
+    def grab_frame(self):
+        """
+        Capture the current frame of the widget and convert it to a NumPy array.
+
+        This function captures the current visual state of the widget using Qt's rendering capabilities. It converts the captured image into a QImage in RGB format and then transforms it into a NumPy array.
+
+        Returns:
+            np.ndarray: A 3D NumPy array representing the captured frame, with shape (height, width, 3).
+        """
+        pixmap = QtGui.QPixmap(self.size())
+        self.render(pixmap)
+
+        qimage = pixmap.toImage().convertToFormat(QtGui.QImage.Format_RGB888)
+    
+        width = qimage.width()
+        height = qimage.height()
+        ptr = qimage.bits()
+        ptr.setsize(qimage.byteCount())
+        arr = np.array(ptr).reshape(height, width, 3)
+        return arr 
+    
+    def send_frame(self):
+        """
+        Capture the current frame and send it as a GStreamer buffer.
+
+        This function captures the current frame using the `grab_frame` method, converts the frame to a byte array, 
+        and sends it to a GStreamer pipeline. It timestamps the buffer and sets its duration for a 30 FPS stream.
+
+        Returns:
+            bool: Always returns True.
+        """
+        frame = self.grab_frame()
+        data = frame.tobytes()
+        buf = Gst.Buffer.new_allocate(None, len(data), None)
+        timestamp = (time.time() - self.start_time) * Gst.SECOND
+        buf.pts = timestamp
+        buf.dts = timestamp
+        buf.duration = Gst.SECOND // 30
+        buf.fill(0, data)
+        self.appsrc.emit('push-buffer', buf)
+        return True
+
     def initUI(self):
 
         '''
@@ -119,6 +185,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.setWindowTitle('Waterfall Plot')
         self.centralWidget = QtWidgets.QWidget()
         self.setCentralWidget(self.centralWidget)
+        self.setGeometry(100, 100, 1280, 720)
         
         # Creates the initial waterfall plot
         spectrogram = liveSpectrogram.window
@@ -189,6 +256,7 @@ if __name__ == '__main__':
     rx_mode = "manual"
     rx_gain = 70
     bandwidth = int(30e6)
+    waraps = True
 
     # Creates the PlutoSDR and sets the properties
     sdr = adi.ad9361(uri='ip:192.168.2.1')
@@ -213,6 +281,7 @@ if __name__ == '__main__':
     liveSpectrogram.moveToThread(thread)
     thread.started.connect(liveSpectrogram.start)
     thread.start()
-
+    if waraps:
+        GLib.timeout_add(1000 // 30, plotter.send_frame)
     plotter.show()
     sys.exit(app.exec_())

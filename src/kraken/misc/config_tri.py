@@ -6,7 +6,7 @@ def write_list_to_config():
 
 def kraken_config(center_freq, num_samples, sample_rate, antenna_distance, x, y, f_type, detection_range):
     config = configparser.ConfigParser()
-    config.read('heimdall_daq_fw/Firmware/daq_chain_config.ini')
+    config.read('../heimdall_daq_fw/Firmware/daq_chain_config.ini')
 
     config.set('daq', 'center_freq', str(center_freq))
     config.set('daq', 'sample_rate', str(sample_rate))
@@ -19,12 +19,12 @@ def kraken_config(center_freq, num_samples, sample_rate, antenna_distance, x, y,
     config.set('variables', 'x', ','.join(map(str, x)))
     config.set('variables', 'y', ','.join(map(str, y)))
 
-    with open('heimdall_daq_fw/Firmware/daq_chain_config.ini', 'w') as configfile:
+    with open('../heimdall_daq_fw/Firmware/daq_chain_config.ini', 'w') as configfile:
         config.write(configfile)
 
 def read_kraken_config():
     config = configparser.ConfigParser()
-    config.read('heimdall_daq_fw/Firmware/daq_chain_config.ini')
+    config.read('../heimdall_daq_fw/Firmware/daq_chain_config.ini')
 
     center_freq = config.getint('daq', 'center_freq')
     sample_rate = config.getint('daq', 'sample_rate')
@@ -41,27 +41,14 @@ def read_kraken_config():
     
     return center_freq, num_samples, sample_rate, antenna_distance, x, y, f_type, detection_range
 
-
 num_samples = 1024*64 # 1048576 # 
 sample_rate = int(2.048e6)
 center_freq = int(433.9e6)
 gain = 40
-#Linear Setup
-# y = np.array([0, 0, 0, 0, 0])
-# x = np.array([-2, -1, 0, 1, 2])
-# antenna_distance = 0.175
-# Circular setup
-ant0 = [1,    0]
-ant1 = [0.3090,    0.9511]
-ant2 = [-0.8090,    0.5878]
-ant3 = [-0.8090,   -0.5878]
-ant4 = [0.3090,   -0.9511]
-y = np.array([ant0[1], ant1[1], ant2[1], ant3[1], ant4[1]])
-x = np.array([ant0[0], ant1[0], ant2[0], ant3[0], ant4[0]])
-antenna_distance =  0.35
-# antenna_distance = antenna_distance / 2.0 / np.sin(36.0*np.pi/180.0)
-antenna_distance = antenna_distance / 2.0 / np.sin(72.0*np.pi/180.0)
-detection_range = 360
-                                  
+# Linear Setupself.num_antennas = 0  
+y = np.array([0, 0, 0, 0, 0])
+x = np.array([-3, -1, 1, 3, 0])
+antenna_distance = 0.175
+detection_range = 180
 
 kraken_config(center_freq, num_samples, sample_rate, antenna_distance, x, y, 'FIR', detection_range)
