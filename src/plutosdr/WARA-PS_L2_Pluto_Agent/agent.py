@@ -11,9 +11,9 @@ from data.config import GpsConfig
 
 class Agent():
     
-    '''
+    """
 
-    An agent that has can perform two tasks. It can perform two tasks, go-home and move-to. 
+    An agent that can be used for the 2022 Arena map and the Integration map. It can perform two tasks, go-home and move-to. 
     The main use of this agent is to be able to change frequency of the Livespectrogram in the QTSpectrogram file.
     This agent is based on the examples provided by WARA-PS at https://github.com/wara-ps/waraps-agent-examples.git . 
     For more information about how the agents work, checkout https://api.docs.waraps.org
@@ -23,7 +23,7 @@ class Agent():
         The spectrogram is a LiveSpectrogram from the file QtSpectrogram.  
 
     
-    '''
+    """
 
     def __init__(self, spectrogram) -> None:
         self.gps = GpsClient()
@@ -105,7 +105,8 @@ class Agent():
                 if self.is_task_supported(task) and not self.logic.task_running:
                     if task["name"] == "move-to":
                         # We technically want to change the frequency however there is no such task. 
-                        # Therefore we use the move-to task, where the altitude represents the frequency i MHz.
+                        # Therefore we use the move-to task, where the altitude represents the frequency in MHz
+                        #  and then we move the agent mostly for funsies and for the task to finish correctly. :))
                         self.logic.task_running = True
                         self.logic.task_running_uuid = task_uuid
                         msg_res_json["response"] = "running"
