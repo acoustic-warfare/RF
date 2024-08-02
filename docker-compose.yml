@@ -11,7 +11,7 @@ services:
       environment:
         - DISPLAY=${DISPLAY}
       volumes: #Mounting these volumes allows us to avoid building kfr inside the container
-               #Docker does not support wildcard matching and we do not want to mount the whole /usr/local/lib directory
+               #Docker does not support wildcard matching and we do not want to mount the whole /usr/local/lib dir
         - /tmp/.X11-unix:/tmp/.X11-unix
         - /usr/local/lib/libkfr_capi_avx2.a:/usr/local/lib/libkfr_capi_avx2.a
         - /usr/local/lib/libkfr_capi_avx2_pic.a:/usr/local/lib/libkfr_capi_avx2_pic.a
@@ -29,12 +29,18 @@ services:
       
   pluto-app:
       build:
-        context: ./src/plutosdr
+        context: ./src/plutosdr/WARA-PS_L2_Pluto_Agent
         dockerfile: Dockerfile.pluto
       ports:
         - "1935:1935"
       environment:
+        - QT_QPA_PLATFORM=xcb
         - DISPLAY=${DISPLAY}
+        - QT_DEBUG_PLUGINS=1
       volumes: 
-          - /tmp/.X11-unix:/tmp/.X11-unix
+        - /tmp/.X11-unix:/tmp/.X11-unix
+        # - ./data:/app/data
+        # - ./:/app
+      env_file:
+        - ./src/plutosdr/WARA-PS_L2_Pluto_Agent/.env
       privileged: true
