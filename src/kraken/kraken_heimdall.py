@@ -41,7 +41,8 @@ class KrakenReceiver():
         )
         self.logger = logging.getLogger(__name__)
 
-        center_freq, num_samples, sample_rate, antenna_distance, x, y, array_type, f_type, waraps = read_kraken_config()
+        
+        center_freq, num_samples, sample_rate, antenna_distance, x, y, array_type, f_type, multi_music, waraps = read_kraken_config()
         self.daq_center_freq = center_freq  # MHz
         self.num_samples = num_samples
         self.daq_sample_rate = sample_rate
@@ -49,13 +50,16 @@ class KrakenReceiver():
         self.y = y * antenna_distance
         self.array_type = array_type
         self.num_antennas = x.size
+        self.multi_music = multi_music
         self.f_type = f_type
         if array_type == 'ULA':
             self.detection_range = 180
+            self.scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, 
+                                                            np.arange(-self.detection_range/2 - 90, self.detection_range/2 -90))
         else:
             self.detection_range = 360
-        self.scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, 
-                                                        np.arange(-self.detection_range/2 - 90, self.detection_range/2 - 90))
+            self.scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, 
+                                                            np.arange(-self.detection_range/2 , self.detection_range/2))
         self.waraps = waraps
 
         #Shared memory setup
@@ -345,7 +349,7 @@ class KrakenReceiver():
     def improved_circle(self, doa_data):
             """"
             Used to improve the precision of the circular antenna configuration by preforming 
-            an additional DOA aproximation with the most optimal pair of antennas.
+            an additional DOA aproximation with the optimal pair of antennas.
             
             1. Recieves the broad DOA approximation with all antennas as doa_data.
             2. Determines the optimal antenna pair for precise DOA estimation based on the initial angle.
@@ -507,25 +511,25 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.doa_plot.showAxis('bottom', False)
         self.layout.addWidget(self.doa_plot, 0, 0, 1, 1)
         
-        self.fft_plot_0 = pg.PlotWidget(title="FFT Antenna 0")
-        self.fft_curve_0 = self.fft_plot_0.plot(pen='r')
-        self.layout.addWidget(self.fft_plot_0, 0, 1, 1, 1)
+        # self.fft_plot_0 = pg.PlotWidget(title="FFT Antenna 0")
+        # self.fft_curve_0 = self.fft_plot_0.plot(pen='r')
+        # self.layout.addWidget(self.fft_plot_0, 0, 1, 1, 1)
         
-        self.fft_plot_1 = pg.PlotWidget(title="FFT Antenna 1")
-        self.fft_curve_1 = self.fft_plot_1.plot(pen='g')
-        self.layout.addWidget(self.fft_plot_1, 1, 0, 1, 1)
+        # self.fft_plot_1 = pg.PlotWidget(title="FFT Antenna 1")
+        # self.fft_curve_1 = self.fft_plot_1.plot(pen='g')
+        # self.layout.addWidget(self.fft_plot_1, 1, 0, 1, 1)
         
-        self.fft_plot_2 = pg.PlotWidget(title="FFT Antenna 2")
-        self.fft_curve_2 = self.fft_plot_2.plot(pen='b')
-        self.layout.addWidget(self.fft_plot_2, 1, 1, 1, 1)
+        # self.fft_plot_2 = pg.PlotWidget(title="FFT Antenna 2")
+        # self.fft_curve_2 = self.fft_plot_2.plot(pen='b')
+        # self.layout.addWidget(self.fft_plot_2, 1, 1, 1, 1)
 
-        self.fft_plot_3 = pg.PlotWidget(title="FFT Antenna 3")
-        self.fft_curve_3 = self.fft_plot_3.plot(pen='y')  # Changed to yellow
-        self.layout.addWidget(self.fft_plot_3, 2, 0, 1, 1)
+        # self.fft_plot_3 = pg.PlotWidget(title="FFT Antenna 3")
+        # self.fft_curve_3 = self.fft_plot_3.plot(pen='y')  # Changed to yellow
+        # self.layout.addWidget(self.fft_plot_3, 2, 0, 1, 1)
 
-        self.fft_plot_4 = pg.PlotWidget(title="FFT Antenna 4")
-        self.fft_curve_4 = self.fft_plot_4.plot(pen='c')  # Changed to cyan
-        self.layout.addWidget(self.fft_plot_4, 2, 1, 1, 1)
+        # self.fft_plot_4 = pg.PlotWidget(title="FFT Antenna 4")
+        # self.fft_curve_4 = self.fft_plot_4.plot(pen='c')  # Changed to cyan
+        # self.layout.addWidget(self.fft_plot_4, 2, 1, 1, 1)
 
         self.doa_cartesian_plot = pg.PlotWidget(title="Direction of Arrival (Cartesian)")
         self.doa_cartesian_curve = self.doa_cartesian_plot.plot(pen=pg.mkPen(pg.mkColor(70,220,0), width=2))
@@ -602,27 +606,29 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         frame_type = kraken.get_iq_online()
         if frame_type == 0:   
 
-            #kraken.apply_filter()
+            kraken.apply_filter()
             #kraken.record_samples()
 
             doa_data = kraken.music()
-            doa_data = kraken.improved_circle(doa_data)
+            if kraken.multi_music:
+                doa_data = kraken.improved_circle(doa_data)
             doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
             
                 
-            freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.daq_sample_rate)  
-            ant0 = np.abs(fft(kraken.iq_samples[0]))
-            ant1 = np.abs(fft(kraken.iq_samples[1]))
-            ant2 = np.abs(fft(kraken.iq_samples[2]))
-            ant3 = np.abs(fft(kraken.iq_samples[3]))
-            ant4 = np.abs(fft(kraken.iq_samples[4]))  
+            # freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.daq_sample_rate)  
+            # ant0 = np.abs(fft(kraken.iq_samples[0]))
+            # ant1 = np.abs(fft(kraken.iq_samples[1]))
+            # ant2 = np.abs(fft(kraken.iq_samples[2]))
+            # ant3 = np.abs(fft(kraken.iq_samples[3]))
+            # ant4 = np.abs(fft(kraken.iq_samples[4]))  
                 
+            
+            # self.fft_curve_0.setData(freqs, ant0)
+            # self.fft_curve_1.setData(freqs, ant1)
+            # self.fft_curve_2.setData(freqs, ant2)
+            # self.fft_curve_3.setData(freqs, ant3)
+            # self.fft_curve_4.setData(freqs, ant4)
             self.plot_doa_circle(doa_data)
-            self.fft_curve_0.setData(freqs, ant0)
-            self.fft_curve_1.setData(freqs, ant1)
-            self.fft_curve_2.setData(freqs, ant2)
-            self.fft_curve_3.setData(freqs, ant3)
-            self.fft_curve_4.setData(freqs, ant4)
             self.doa_cartesian_curve.setData(np.linspace(0, len(doa_data), len(doa_data)), doa_data)
 
             print(np.argmax(doa_data) - 90) 

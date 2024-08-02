@@ -106,9 +106,9 @@ class KrakenSim():
         else:
             uca = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
             ula = pa.gen_scanning_vectors(self.num_devices, np.array([-2.0, -1.0 ,0.0, 1.0, 2.0]) * antenna_distance_ula, np.array([0.0,0.0,0.0,0.0,0.0]), np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
-            self.buffer = phase_mode_transform(ula, uca, self.buffer)
             spatial_corr_matrix = pa.spatial_correlation_matrix(self.buffer, self.num_samples)
-            doa = pa.DOA_MUSIC(spatial_corr_matrix, uca, signal_dimension=signal_dimension)
+            spatial_corr_matrix = phase_mode_transform(uca, ula, spatial_corr_matrix)
+            doa = pa.DOA_MUSIC(spatial_corr_matrix, ula, signal_dimension=signal_dimension)
         
         return doa
     
@@ -119,23 +119,25 @@ def whiten_transform(A):
     return w @ A @ w.T
 
 #Ta 5 samples i taget
-def phase_mode_transform(ula, uca, data):
-    Tr = ula @ uca.T @ np.linalg.pinv(uca @ uca.T)
+def phase_mode_transform(ula, uca, corr):
+    Tr = ula @ uca.conj().T @ np.linalg.inv(uca @ uca.conj().T)
 
-    n = data.shape[1]
-    new_n = (n // 5) * 5
+    # n = data.shape[1]
+    # new_n = (n // 5) * 5
     
-    # Trim the matrix to be (5, new_n) if necessary
-    trimmed_matrix = data[:, :new_n] if new_n < n else data
+    # # Trim the matrix to be (5, new_n) if necessary
+    # trimmed_matrix = data[:, :new_n] if new_n < n else data
 
-    reshaped_matrix = trimmed_matrix.reshape((5, n // 5, 5)).transpose(1, 0, 2)
-    (print(reshaped_matrix.shape))
+    # reshaped_matrix = trimmed_matrix.reshape((5, n // 5, 5)).transpose(1, 0, 2)
+    # (print(reshaped_matrix.shape))
     
-    # Apply the transformation to each (5, 5) block
-    transformed_blocks = Tr @ reshaped_matrix @ Tr.T
+    # # Apply the transformation to each (5, 5) block
+    # transformed_blocks = Tr @ reshaped_matrix @ Tr.conj().T
     
-    # Reshape back to (5, n)
-    transformed_matrix = transformed_blocks.transpose(1, 0, 2).reshape(5, new_n)
+    # # Reshape back to (5, n)
+    # transformed_matrix = transformed_blocks.transpose(1, 0, 2).reshape(5, new_n)
+
+    transformed_matrix = Tr @ corr @ Tr.conj().T
 
     return transformed_matrix
 
@@ -538,7 +540,7 @@ if __name__ == '__main__':
 
     kraken = KrakenSim(center_freq, num_samples, sample_rate, gain,    
                             antenna_distance, x, y, "UCA", num_devices = 5, circular = circular,
-                            simulation_angles = [60], simulation_frequencies = [center_freq], simulation_noise = 1e1,
+                            simulation_angles = [0], simulation_frequencies = [center_freq], simulation_noise = 1e1,
                             f_type = 'FIR', detection_range = 360, music_dim = 1)
     
     app = QtWidgets.QApplication(sys.argv)

@@ -2,7 +2,7 @@ import configparser
 import numpy as np
 
 def kraken_config(center_freq, num_samples, sample_rate, antenna_distance, 
-                  x, y, array_type, f_type, waraps):
+                  x, y, array_type, f_type, multi_music, waraps):
     """
     Configures and writes the DAQ (Data Acquisition) chain settings to an INI file.
 
@@ -33,13 +33,12 @@ def kraken_config(center_freq, num_samples, sample_rate, antenna_distance,
     config.set('daq', 'gain', str(gain))
     config.set('daq', 'daq_buffer_size', str(num_samples))
     config.set('pre_processing', 'cpi_size', str(num_samples))
-    config.set('pre_processing', 'fir_tap_size', str(51))
-    config.set('pre_processing', 'fir_relative_bandwidth', str(0.1))
     config.set('variables', 'f_type', f_type)
     config.set('variables', 'x', ','.join(map(str, x)))
     config.set('variables', 'y', ','.join(map(str, y)))
     config.set('variables', 'antenna_distance', str(antenna_distance))
     config.set('variables', 'array_type', array_type)
+    config.set('variables', 'multi_music', str(multi_music))
     config.set('variables', 'waraps', str(waraps))
 
     with open('heimdall_daq_fw/Firmware/daq_chain_config.ini', 'w') as configfile:
@@ -83,9 +82,10 @@ def read_kraken_config():
     y = np.fromstring(y_str, sep=',')
     
     f_type = config.get('variables', 'f_type')
+    multi_music = config.getboolean('variables', 'multi_music')
     waraps = config.getboolean('variables', 'waraps')
     
-    return center_freq, num_samples, sample_rate, antenna_distance, x, y, array_type, f_type, waraps
+    return center_freq, num_samples, sample_rate, antenna_distance, x, y, array_type, f_type, multi_music, waraps
 
 num_samples = 1024*64 # 1048576 # 
 sample_rate = int(2.048e6)
@@ -103,9 +103,11 @@ ant3 = [-0.8090,   -0.5878]
 ant4 = [0.3090,   -0.9511]
 y = np.array([ant0[1], ant1[1], ant2[1], ant3[1], ant4[1]])
 x = np.array([ant0[0], ant1[0], ant2[0], ant3[0], ant4[0]])
-antenna_distance =  0.35
-antenna_distance = antenna_distance / 2.0 / np.sin(72.0*np.pi/180.0)
+antenna_distance =  0.368
+antenna_distance = antenna_distance / 2.0 / np.sin(36.0*np.pi/180.0)
 
 waraps = False
+#Multi music is only for UCA
+multi_music = False
 
-kraken_config(center_freq, num_samples, sample_rate, antenna_distance, x, y, 'UCA', 'FIR', waraps)
+kraken_config(center_freq, num_samples, sample_rate, antenna_distance, x, y, 'UCA', 'FIR', multi_music, waraps)
