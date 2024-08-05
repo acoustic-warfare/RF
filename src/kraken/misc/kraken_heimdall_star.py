@@ -30,9 +30,13 @@ class KrakenReceiver():
         self.y = y * antenna_distance
         self.num_antennas = x.size
         self.f_type = f_type
+        #self.multi_music = multi_music
         self.detection_range = detection_range
         self.thetas = np.arange(0, self.detection_range)
         self.scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, self.thetas)
+
+        #if self.multi_music:
+        #    self.multi_music_vecs = self.multi_vecs()
 
         #Shared memory setup
         root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
@@ -245,65 +249,6 @@ class KrakenReceiver():
         doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, sig_dim)
         
         return doa
-    
-    #change this name
-    def placeholder(self, doa_data):
-            ang_0 = np.argmax(doa_data)
-            print(f'first angle = {ang_0} degrees') 
-
-            # Makes reference list for the optimal recieving angles for each antenna pair. 
-            # The last and second-to-last index belongs to the same antenna pair.
-            ang_centers = [[72, 252], [144, 324], [36, 216], [108, 288], [0, 180], [360, 180]] 
-           
-            # Finds the optimal antenna pair for the current angle.
-            ang_center_diffs = [min([abs(c[0] - ang_0), abs(c[1] - ang_0)]) for c in ang_centers]
-            ang_min_diff = min(ang_center_diffs)
-            index_best = ang_center_diffs.index(ang_min_diff)
-            ang_best = ang_centers[index_best]
-            print(f'best angles = {ang_best} degrees') 
-
-            #Selects which antennas to use based on the previosly derived optimal antenna pair.
-            if index_best == 5:
-                index_best = 4
-                index_next = 1
-            elif index_best > 2:
-                index_next = index_best - 3
-            else:
-                index_next = index_best + 2
-
-            # index_next = (index_best + 2) % 6 if index_best <= 2 else (index_best - 3)
-            # if index_best == 5:
-            #     index_best, index_next = 4, 1
-
-            print(f'antennas used = {index_best, index_next}') 
-
-            # Preforms a percise DOA approximation using the most optimal pair of antennas.
-            doa_data_1 = kraken.music([index_best, index_next])
-            doa_data_1 = np.divide(np.abs(doa_data_1), np.max(np.abs(doa_data_1)))            
-
-            # Finds which side of the semi circle that contains the true angle.
-            bottom_half =  abs(ang_best[0] - ang_0) > abs(ang_best[1] - ang_0)
-            print(f'Left half-plane: {bottom_half}')
-
-            # Removes the un-true (mirrored) DOA-angle
-            if bottom_half:
-                ang_worst = ang_best[0]
-            else:
-                ang_worst = ang_best[1]
-                
-            if ang_worst < 90: 
-                doa_data_1[ang_worst +270 : ] = 0.0
-                doa_data_1[ : ang_worst +90] = 0.0
-            elif ang_worst > 270: 
-                doa_data_1[ : ang_worst -270] = 0.0
-                doa_data_1[ang_worst -90 : ] = 0.0
-            else:
-                doa_data_1[ang_worst -90 : ang_worst +90] = 0.0
-
-            # Prints and plots the resulting DOA-angle
-            ang_1 = np.argmax(doa_data_1)
-            print(f'angle = {ang_1} degrees')
-            return doa_data_1
 
     def record_samples(self):
         if self.file:
@@ -327,6 +272,112 @@ class KrakenReceiver():
             self.file = 'recordings/' + timestamp.strftime("%Y-%m-%d_%H:%M:%S") + '.h5'
             with h5py.File(self.file, 'w') as hf:
                 hf.create_dataset('iq_samples', data=self.iq_samples, maxshape=(self.iq_samples.shape[0], None))
+
+
+    def multi_vecs(self):
+        vecs = {
+                (0,2) : de.gen_scanning_vectors_linear(2, np.array([self.x[0],self.x[2]]), np.array([self.y[0],self.y[2]]), 
+                                                            np.arange(-self.detection_range/2, self.detection_range/2)),
+
+                (1,3) : de.gen_scanning_vectors_linear(2, np.array([self.x[1],self.x[3]]), np.array([self.y[1],self.y[3]]), 
+                                                            np.arange(-self.detection_range/2, self.detection_range/2)),
+
+                (2,4) : de.gen_scanning_vectors_linear(2, np.array([self.x[2],self.x[4]]), np.array([self.y[2],self.y[4]]), 
+                                                            np.arange(-self.detection_range/2, self.detection_range/2)),
+
+                (3,0) : de.gen_scanning_vectors_linear(2, np.array([self.x[3],self.x[0]]), np.array([self.y[3],self.y[0]]), 
+                                                            np.arange(-self.detection_range/2, self.detection_range/2)),
+
+                (4,1) : de.gen_scanning_vectors_linear(2, np.array([self.x[4],self.x[1]]), np.array([self.y[4],self.y[1]]), 
+                                                            np.arange(-self.detection_range/2, self.detection_range/2))
+            }
+        return vecs
+    
+    def selective_music(self, indices):
+        """
+        Performs Direction of Arrival (DOA) estimation using the MEM algorithm.
+        This function also has the option to select which antennas should be used in the approximation with the 'index' -parameter. 
+
+        Takes (optional):
+        array
+            array of int representing the indexes of the antennas to be used in the approximation.
+
+        Returns:
+        numpy.ndarray
+            Array of estimated DOA angles in degrees.
+        """
+        buffer = np.array([self.iq_samples[i] for i in indices])
+
+        spatial_corr_matrix = de.spatial_correlation_matrix(buffer, self.num_samples)
+        scanning_vectors = self.multi_music_vecs[indices]
+        sig_dim = 1
+        doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, sig_dim)
+        return doa
+    
+    
+    def improved_circle(self, doa_data):
+            """"
+            Used to improve the precision of the circular antenna configuration by preforming 
+            an additional DOA aproximation with the optimal pair of antennas.
+            
+            1. Recieves the broad DOA approximation with all antennas as doa_data.
+            2. Determines the optimal antenna pair for precise DOA estimation based on the initial angle.
+            3. Identifies which half of the plane contains the true angle and removes mirrored DOA results.
+            4. Calculates and returns the final DOA response.
+            
+            Takes:
+            numpy.ndarray
+            Array of estimated DOA angles in degrees.
+            
+            Returns:
+            numpy.ndarray
+            Array of estimated DOA angles in degrees (But better).
+            
+            """
+            
+            ang_0 = np.argmax(doa_data)
+
+            # Makes reference list for the optimal recieving angles for each antenna pair. 
+            # The last and second-to-last index belongs to the same antenna pair.
+            ang_centers = [[72, 252], [144, 324], [36, 216], [108, 288], [0, 180], [360, 180]] 
+           
+            # Finds the optimal antenna pair for the current angle.
+            ang_center_diffs = [min([abs(c[0] - ang_0), abs(c[1] - ang_0)]) for c in ang_centers]
+            ang_min_diff = min(ang_center_diffs)
+            index_best = ang_center_diffs.index(ang_min_diff)
+            ang_best = ang_centers[index_best]
+
+            #Selects which antennas to use based on the previosly derived optimal antenna pair.
+            if index_best == 5:
+                index_best = 4
+                index_next = 1
+            elif index_best > 2:
+                index_next = index_best - 3
+            else:
+                index_next = index_best + 2
+
+            # Preforms a percise DOA approximation using the most optimal pair of antennas.
+            doa_data_1 = kraken.selective_music((index_best, index_next))
+            doa_data_1 = np.divide(np.abs(doa_data_1), np.max(np.abs(doa_data_1)))            
+
+            # Finds which side of the semi circle that contains the true angle and identifies the un-true (mirrored) DOA-angle   
+            if abs(ang_best[0] - ang_0) > abs(ang_best[1] - ang_0):
+                ang_worst = ang_best[0]
+            else:
+                ang_worst = ang_best[1]
+            
+            # Removes the un-true (mirrored) DOA-angle    
+            if ang_worst < 90: 
+                doa_data_1[ang_worst +270 : ] = 0.0
+                doa_data_1[ : ang_worst +90] = 0.0
+            elif ang_worst > 270: 
+                doa_data_1[ : ang_worst -270] = 0.0
+                doa_data_1[ang_worst -90 : ] = 0.0
+            else:
+                doa_data_1[ang_worst -90 : ang_worst +90] = 0.0
+
+
+            return doa_data_1
     
 class RealTimePlotter(QtWidgets.QMainWindow):
     """
@@ -463,11 +514,13 @@ class RealTimePlotter(QtWidgets.QMainWindow):
 
             # Preforms the broad DOA approximation using all antennas.
             doa_data = kraken.music()
+            if kraken.multi_music:
+                doa_data = kraken.improved_circle(doa_data)
             doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
         
-            doa_data_1 = kraken.placeholder(doa_data)
-            doa_datas = [doa_data_1, doa_data]
-            self.plot_doa_circle(doa_datas)
+            #doa_data_1 = kraken.placeholder(doa_data)
+            #doa_datas = [doa_data_1, doa_data]
+            #self.plot_doa_circle(doa_datas)
             
             # Plots the FFT
             freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.daq_sample_rate)  

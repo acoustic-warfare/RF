@@ -117,7 +117,7 @@ def DOA_MUSIC2(R, scanning_vectors, signal_dimension):
     sigmai, vi = lin.eig(R)
     sigmai = np.abs(sigmai)
 
-    idx = sigmai.argsort()[::1]  # Sort eigenvectors by eigenvalues, smallest to largest
+    idx = sigmai.argsort()[::-1]  # Sort eigenvectors by eigenvalues, smallest to largest
     vi = vi[:, idx]
 
     E = vi[:, :signal_dimension] 
@@ -127,7 +127,7 @@ def DOA_MUSIC2(R, scanning_vectors, signal_dimension):
     for i in range(scanning_vectors[0, :].size):
         S_theta_ = scanning_vectors[:, i]
         S_theta_ = np.ascontiguousarray(S_theta_.T)
-        ADORT[theta_index] = 1 / np.abs(S_theta_.conj().T @ E_ct @ S_theta_)
+        ADORT[theta_index] = np.abs(S_theta_.conj().T @ E_ct @ S_theta_)
         theta_index += 1
 
     return ADORT
