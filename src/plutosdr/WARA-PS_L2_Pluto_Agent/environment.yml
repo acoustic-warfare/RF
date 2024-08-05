@@ -25,3 +25,5 @@ dependencies:
   - x264
   - libxcb
   - pylibiio
+  - paho-mqtt
+  - haversine

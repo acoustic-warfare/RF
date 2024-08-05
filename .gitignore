@@ -3,3 +3,5 @@
 __pycache__
 src/kraken/recordings
 src/kraken/kraken.log
+Pipfile.lock
+.python-version

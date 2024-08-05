@@ -1,0 +1,9 @@
+paho-mqtt
+haversine
+pyqtgraph
+pyqt5
+pyadi-iio
+glib
+gst
+pycairo 
+PyGObject
