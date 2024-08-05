@@ -82,9 +82,10 @@ def DOA_MUSIC(R, scanning_vectors, signal_dimension):
 
     return ADORT
 
-def DOA_MUSIC2(R, scanning_vectors, signal_dimension):
+def DOA_MUSIC_SIGNAL_SUBSPACE(R, scanning_vectors, signal_dimension):
     """
     Estimates the Direction of Arrival (DOA) using the MUSIC algorithm.
+    This version of music uses the signal subspace instead of the noise subspace
 
     Parameters:
     -----------
@@ -136,7 +137,7 @@ def DOA_MUSIC2(R, scanning_vectors, signal_dimension):
 def forward_backward_avg(R):
     """
     Computes the forward-backward averaged spatial correlation matrix.
-    This does not work for UCA.
+    This does not work for ULA setups.
 
     Parameters:
     -----------
@@ -164,7 +165,7 @@ def gen_scanning_vectors_linear(M, x, y, thetas):
     """
     Description:
     ------------
-        This function prepares scanning vectorors for general antenna array configurations        
+        This function prepares scanning vectorors for linear antenna array configurations        
         
     Parameters:
     -----------
@@ -193,9 +194,34 @@ def gen_scanning_vectors_linear(M, x, y, thetas):
     
     return np.ascontiguousarray(scanning_vectors)
 
-
+@njit(fastmath=True, cache=True)
 def gen_scanning_vectors_circular(M, radius, frequency, thetas):
-    
+    """
+    Description:
+    ------------
+        This function prepares scanning vectors for circular antenna array configurations.
+        
+    Parameters:
+    -----------
+        :param M: Number of antenna elements in the circular array.
+        :type M: int
+        
+        :param radius: Radius of the circular array in meters.
+        :type radius: float
+        
+        :param frequency: Frequency of the signal in Hertz.
+        :type frequency: float
+        
+        :param thetas: A vector containing the incident angles in degrees (e.g., [0, 1, 2, ..., 180]).
+        :type thetas: 1D numpy array
+        
+    Return values:
+    --------------
+        :return scanning_vectors: A 2D numpy array containing the scanning vectors for each incident angle.
+        :rtype scanning_vectors: 2D numpy array with shape (M, P), where P is the number of incident angles.
+
+    """
+
     # Speed of light in meters per second
     c = 299792458
 
@@ -211,10 +237,6 @@ def gen_scanning_vectors_circular(M, radius, frequency, thetas):
     for i in range(thetas.size):        
         theta_rad = np.deg2rad(thetas[i])
         
-        # Calculate the scanning vector for each incident angle
-        #scanning_vectors[:, i] = np.exp(
-        #    1j * 2 * np.pi / wavelength * radius * (np.cos(angles) * np.cos(theta_rad) + np.sin(angles) * np.sin(theta_rad))
-        #)
         scanning_vectors[:, i] = np.exp(1j * 2*np.pi * radius / wavelength * (np.cos(theta_rad - angles)))
     
     return np.ascontiguousarray(scanning_vectors)
