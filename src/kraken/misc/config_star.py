@@ -4,7 +4,7 @@ import numpy as np
 def write_list_to_config():
     pass
 
-def kraken_config(center_freq, num_samples, sample_rate, antenna_distance, x, y, f_type, detection_range):
+def kraken_config(center_freq, num_samples, sample_rate, antenna_distance, x, y, f_type, multi_music, detection_range):
     config = configparser.ConfigParser()
     config.read('../heimdall_daq_fw/Firmware/daq_chain_config.ini')
 
@@ -15,6 +15,7 @@ def kraken_config(center_freq, num_samples, sample_rate, antenna_distance, x, y,
     config.set('pre_processing', 'cpi_size', str(num_samples))
     config.set('variables', 'antenna_distance', str(antenna_distance))
     config.set('variables', 'f_type', f_type)
+    config.set('variables', 'multi_music', str(multi_music))
     config.set('variables', 'detection_range', str(detection_range))
     config.set('variables', 'x', ','.join(map(str, x)))
     config.set('variables', 'y', ','.join(map(str, y)))
@@ -37,9 +38,10 @@ def read_kraken_config():
     y = np.fromstring(y_str, sep=',')
     
     f_type = config.get('variables', 'f_type')
-    #detection_range = config.get('variables', 'detection_range')
+    multi_music = config.getboolean('variables', 'multi_music')
+    detection_range = config.getint('variables', 'detection_range')
     
-    return center_freq, num_samples, sample_rate, antenna_distance, x, y, f_type, detection_range
+    return center_freq, num_samples, sample_rate, antenna_distance, x, y, f_type, multi_music, detection_range
 
 
 num_samples = 1024*64 # 1048576 # 
@@ -62,6 +64,7 @@ antenna_distance =  0.35
 # antenna_distance = antenna_distance / 2.0 / np.sin(36.0*np.pi/180.0)
 antenna_distance = antenna_distance / 2.0 / np.sin(72.0*np.pi/180.0)
 detection_range = 360
+multi_music = True
                                   
 
-kraken_config(center_freq, num_samples, sample_rate, antenna_distance, x, y, 'FIR', detection_range)
+kraken_config(center_freq, num_samples, sample_rate, antenna_distance, x, y, 'FIR', multi_music, detection_range)

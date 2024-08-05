@@ -22,7 +22,7 @@ from iq_header import IQHeader
 class KrakenReceiver():
     def __init__(self):
 
-        center_freq, num_samples, sample_rate, antenna_distance, x, y, f_type, detection_range = read_kraken_config()
+        center_freq, num_samples, sample_rate, antenna_distance, x, y, f_type, multi_music, detection_range = read_kraken_config()
         self.daq_center_freq = center_freq  # MHz
         self.num_samples = num_samples
         self.daq_sample_rate = sample_rate
@@ -30,13 +30,16 @@ class KrakenReceiver():
         self.y = y * antenna_distance
         self.num_antennas = x.size
         self.f_type = f_type
-        #self.multi_music = multi_music
+        self.multi_music = multi_music
         self.detection_range = detection_range
         self.thetas = np.arange(0, self.detection_range)
-        self.scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, self.thetas)
+        if self.detection_range == 180:
+            self.scanning_vectors = de.gen_scanning_vectors_linear(self.num_antennas, self.x, self.y, self.thetas)
+        else:
+            self.scanning_vectors = de.gen_scanning_vectors_circular(self.num_antennas, antenna_distance, self.daq_center_freq, self.thetas)
 
-        #if self.multi_music:
-        #    self.multi_music_vecs = self.multi_vecs()
+        if self.multi_music:
+           self.multi_music_vecs = self.multi_vecs()
 
         #Shared memory setup
         root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
@@ -227,7 +230,7 @@ class KrakenReceiver():
             self.iq_samples = signal.lfilter(self.filter, 1.0, self.iq_samples)
 
 
-    def music(self, index = [0, 1, 2, 3, 4]):
+    def music(self):
         """
         Performs Direction of Arrival (DOA) estimation using the MEM algorithm.
 
@@ -235,19 +238,10 @@ class KrakenReceiver():
         numpy.ndarray
             Array of estimated DOA angles in degrees.
         """
+        spatial_corr_matrix = de.spatial_correlation_matrix(self.iq_samples, self.num_samples)
+        sig_dim = de.infer_signal_dimension(spatial_corr_matrix)
+        doa = de.DOA_MUSIC(spatial_corr_matrix, self.scanning_vectors, sig_dim)
 
-        x = np.array([self.x[i] for i in index])
-        y = np.array([self.y[i] for i in index])
-
-        buffer = np.array([self.iq_samples[i] for i in index])
-        buffer_dim = len(x)
-
-        spatial_corr_matrix = de.spatial_correlation_matrix(buffer, self.num_samples)
-       
-        scanning_vectors = de.gen_scanning_vectors(buffer_dim, x, y, np.arange(0, self.detection_range))
-        sig_dim = 1
-        doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, sig_dim)
-        
         return doa
 
     def record_samples(self):
@@ -515,12 +509,11 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             # Preforms the broad DOA approximation using all antennas.
             doa_data = kraken.music()
             if kraken.multi_music:
-                doa_data = kraken.improved_circle(doa_data)
+                doa_data_1 = kraken.improved_circle(doa_data)
             doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
         
-            #doa_data_1 = kraken.placeholder(doa_data)
-            #doa_datas = [doa_data_1, doa_data]
-            #self.plot_doa_circle(doa_datas)
+            doa_datas = [doa_data_1, doa_data]
+            self.plot_doa_circle(doa_datas)
             
             # Plots the FFT
             freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.daq_sample_rate)  

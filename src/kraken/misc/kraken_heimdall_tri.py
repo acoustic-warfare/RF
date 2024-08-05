@@ -32,7 +32,7 @@ class KrakenReceiver():
         self.f_type = f_type
         self.detection_range = detection_range
         self.thetas = np.arange(-self.detection_range/2 - 90, self.detection_range/2 - 90)
-        self.scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, self.thetas)
+        self.scanning_vectors = de.gen_scanning_vectors_linear(self.num_antennas, self.x, self.y, self.thetas)
 
         #Shared memory setup
         root_path = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
@@ -242,7 +242,7 @@ class KrakenReceiver():
         spatial_corr_matrix = de.spatial_correlation_matrix(buffer, self.num_samples)
         spatial_corr_matrix = de.forward_backward_avg(spatial_corr_matrix)
         # scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
-        scanning_vectors = de.gen_scanning_vectors(buffer_dim, x, y, np.arange(-self.detection_range/2 -90, self.detection_range/2 -90))
+        scanning_vectors = de.gen_scanning_vectors_linear(buffer_dim, x, y, np.arange(-self.detection_range/2 -90, self.detection_range/2 -90))
         sig_dim = 1 #de.infer_signal_dimension(spatial_corr_matrix)
         doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, sig_dim)
         #print(f'doa_max = {np.argmax(doa)}')
