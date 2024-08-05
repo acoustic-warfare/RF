@@ -117,21 +117,17 @@ def DOA_MUSIC2(R, scanning_vectors, signal_dimension):
     sigmai, vi = lin.eig(R)
     sigmai = np.abs(sigmai)
 
-    # Sort eigenvectors by eigenvalues, largest to smallest
-    idx = sigmai.argsort()[::-1]  # Change: Sort in descending order
+    idx = sigmai.argsort()[::1]  # Sort eigenvectors by eigenvalues, smallest to largest
     vi = vi[:, idx]
 
-    # Generate signal subspace matrix
-    signal_dimension = M - (M - signal_dimension)  # Redundant line, can be removed
-    E = vi[:, :signal_dimension]  # Change: Select largest eigenvectors
+    E = vi[:, :signal_dimension] 
 
-    # Calculate the pseudo-spectrum using the signal subspace
     E_ct = E @ E.conj().T
     theta_index = 0
     for i in range(scanning_vectors[0, :].size):
         S_theta_ = scanning_vectors[:, i]
         S_theta_ = np.ascontiguousarray(S_theta_.T)
-        ADORT[theta_index] = np.abs(S_theta_.conj().T @ E_ct @ S_theta_)  # Change: Direct projection for signal subspace
+        ADORT[theta_index] = 1 / np.abs(S_theta_.conj().T @ E_ct @ S_theta_)
         theta_index += 1
 
     return ADORT
