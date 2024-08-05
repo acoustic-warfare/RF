@@ -82,6 +82,60 @@ def DOA_MUSIC(R, scanning_vectors, signal_dimension):
 
     return ADORT
 
+def DOA_MUSIC2(R, scanning_vectors, signal_dimension):
+    """
+    Estimates the Direction of Arrival (DOA) using the MUSIC algorithm.
+
+    Parameters:
+    -----------
+    R : ndarray
+        Spatial correlation matrix.
+    scanning_vectors : ndarray
+        Array of scanning vectors.
+    signal_dimension : int
+        Number of signal sources.
+
+    Returns:
+    --------
+    ADORT : ndarray
+        Array of DOA estimates. If input dimensions are incorrect, returns an array with a single element (-1 or -2).
+    """
+    # --> Input check
+    if R[:, 0].size != R[0, :].size:
+        print("ERROR: Correlation matrix is not quadratic")
+        return np.ones(1, dtype=np.complex64) * -1  
+
+    if R[:, 0].size != scanning_vectors[:, 0].size:
+        print("ERROR: Correlation matrix dimension does not match with the antenna array dimension")
+        return np.ones(1, dtype=np.complex64) * -2
+
+    ADORT = np.zeros(scanning_vectors[0, :].size, dtype=np.complex64)
+    M = R[:, 0].size  
+
+    # --- Calculation ---
+    # Determine eigenvectors and eigenvalues
+    sigmai, vi = lin.eig(R)
+    sigmai = np.abs(sigmai)
+
+    # Sort eigenvectors by eigenvalues, largest to smallest
+    idx = sigmai.argsort()[::-1]  # Change: Sort in descending order
+    vi = vi[:, idx]
+
+    # Generate signal subspace matrix
+    signal_dimension = M - (M - signal_dimension)  # Redundant line, can be removed
+    E = vi[:, :signal_dimension]  # Change: Select largest eigenvectors
+
+    # Calculate the pseudo-spectrum using the signal subspace
+    E_ct = E @ E.conj().T
+    theta_index = 0
+    for i in range(scanning_vectors[0, :].size):
+        S_theta_ = scanning_vectors[:, i]
+        S_theta_ = np.ascontiguousarray(S_theta_.T)
+        ADORT[theta_index] = np.abs(S_theta_.conj().T @ E_ct @ S_theta_)  # Change: Direct projection for signal subspace
+        theta_index += 1
+
+    return ADORT
+
 @njit(fastmath=True, cache=True)
 def forward_backward_avg(R):
     """
