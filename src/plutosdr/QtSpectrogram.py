@@ -12,6 +12,9 @@ import time
 import adi
 import numpy as np
 from pyqtgraph.Qt import QtGui
+sys.path.append("/usr/local/lib/python3.10/site-packages")
+from rtmp_streamer import PyRtmpStreamer
+
 
 class LiveSpectrogram(QtCore.QObject):
     data_ready = QtCore.pyqtSignal(np.ndarray)
@@ -245,6 +248,11 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         
         '''
         self.waterfall.setImage(spectrogram.T)
+        if waraps:
+            frame = self.grab_frame()
+            streamer.send_frame(frame.tobytes())
+            time.sleep(1000//30)
+
 
 
 if __name__ == '__main__':
@@ -256,7 +264,7 @@ if __name__ == '__main__':
     rx_mode = "manual"
     rx_gain = 70
     bandwidth = int(30e6)
-    waraps = True
+    waraps = False
 
     # Creates the PlutoSDR and sets the properties
     sdr = adi.ad9361(uri='ip:192.168.2.1')
@@ -281,7 +289,13 @@ if __name__ == '__main__':
     liveSpectrogram.moveToThread(thread)
     thread.started.connect(liveSpectrogram.start)
     thread.start()
+    streamer = PyRtmpStreamer(1280, 720)
+    #streamer.start_local_stream()
+
     if waraps:
-        GLib.timeout_add(1000 // 30, plotter.send_frame)
+        streamer.start_rtmp_stream()
+
+
+        #GLib.timeout_add(1000 // 30, plotter.send_frame)
     plotter.show()
     sys.exit(app.exec_())
