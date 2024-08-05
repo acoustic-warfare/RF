@@ -6,7 +6,7 @@ RUN conda install -c conda-forge mamba
 
 # Install necessary packages
 RUN apt-get update && apt-get install -y \
-    lsof \
+ lsof \
     libgl1-mesa-glx \
     nano \
     libzmq3-dev \
@@ -44,13 +44,16 @@ RUN apt-get update && apt-get install -y \
     gstreamer1.0-pulseaudio && \
     rm -rf /var/lib/apt/lists/*
 
+
     
 
 # Set the working directory in the container
-WORKDIR /src/plutosdr
+WORKDIR /src/plutosdr/WARA-PS_L2_Pluto_Agent
 
 # Copy the environment file into the container
 COPY environment.yml .
+
+#ENV QT_QPA_PLATFORM_PLUGIN_PATH=/usr/lib/x86_64-linux-gnu/qt5/plugins/platforms/libqxcb.so
 
 # Create the conda environment
 RUN conda env create -f environment.yml
@@ -61,5 +64,8 @@ SHELL ["conda", "run", "-n", "pluto", "/bin/bash", "-c"]
 # Copy the rest of the application code into the container
 COPY . .
 
+# Make port 1935 available for RTMP streaming
+EXPOSE 1935
+
 # Run the Spectrogram
-CMD ["conda", "run", "-n", "pluto", "python", "./QtSpectrogram.py"]
+CMD ["conda", "run", "-n", "pluto", "python", "./main.py"]
