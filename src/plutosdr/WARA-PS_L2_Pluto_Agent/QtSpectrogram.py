@@ -244,8 +244,9 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         # Apply the color map to the ImageItem
         self.waterfall.setLookupTable(color_map.getLookupTable())
 
-        # Optionally, you can set the levels of the ImageItem for better color mapping
-        #self.waterfall.setLevels([np.min(data), np.max(data)])
+        bar = pg.ColorBarItem(colorMap=color_map)
+        bar.setImageItem(self.waterfall)
+        self.win.addItem(bar)
 
 
         
