@@ -164,7 +164,7 @@ def forward_backward_avg(R):
     return np.ascontiguousarray(R_fb)
 
 @njit(fastmath=True, cache=True)
-def gen_scanning_vectors(M, x, y, thetas):
+def gen_scanning_vectors_linear(M, x, y, thetas):
     """
     Description:
     ------------
@@ -197,6 +197,31 @@ def gen_scanning_vectors(M, x, y, thetas):
     
     return np.ascontiguousarray(scanning_vectors)
 
+
+def gen_scanning_vectors_circular(M, radius, frequency, thetas):
+    
+    # Speed of light in meters per second
+    c = 299792458
+
+    # Wavelength of the signal
+    wavelength = c / frequency
+    
+    # Angle of each antenna element on the circle
+    angles = np.linspace(0, 2 * np.pi, M, endpoint=False)
+
+    # Preallocate scanning vectors array
+    scanning_vectors = np.zeros((M, thetas.size), dtype=np.complex64)
+    
+    for i in range(thetas.size):        
+        theta_rad = np.deg2rad(thetas[i])
+        
+        # Calculate the scanning vector for each incident angle
+        #scanning_vectors[:, i] = np.exp(
+        #    1j * 2 * np.pi / wavelength * radius * (np.cos(angles) * np.cos(theta_rad) + np.sin(angles) * np.sin(theta_rad))
+        #)
+        scanning_vectors[:, i] = np.exp(1j * 2*np.pi * radius / wavelength * (np.cos(theta_rad - angles)))
+    
+    return np.ascontiguousarray(scanning_vectors)
 
 @njit(fastmath=True, cache=True)
 def spatial_smoothing(M, iq_samples ,P, direction): 

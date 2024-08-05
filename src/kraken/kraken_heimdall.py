@@ -54,12 +54,14 @@ class KrakenReceiver():
         self.f_type = f_type
         if array_type == 'ULA':
             self.detection_range = 180
-            self.scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, 
+            self.scanning_vectors = de.gen_scanning_vectors_linear(self.num_antennas, self.x, self.y, 
                                                             np.arange(-self.detection_range/2 - 90, self.detection_range/2 -90))
         else:
             self.detection_range = 360
-            self.scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, 
-                                                            np.arange(-self.detection_range/2 , self.detection_range/2))
+            self.scanning_vectors = de.gen_scanning_vectors_circular(self.num_antennas, antenna_distance, 
+                                               self.daq_center_freq, np.arange(-self.detection_range/2 , self.detection_range/2))
+        if self.multi_music:
+            self.multi_music_vecs = self.multi_vecs()
         self.waraps = waraps
 
         #Shared memory setup
@@ -317,8 +319,26 @@ class KrakenReceiver():
             with h5py.File(self.file, 'w') as hf:
                 hf.create_dataset('iq_samples', data=self.iq_samples, maxshape=(self.iq_samples.shape[0], None))
     
+    def multi_vecs(self):
+        vecs = {
+                (0,2) : de.gen_scanning_vectors_linear(2, np.array([self.x[0],self.x[2]]), np.array([self.y[0],self.y[2]]), 
+                                                            np.arange(-self.detection_range/2, self.detection_range/2)),
+
+                (1,3) : de.gen_scanning_vectors_linear(2, np.array([self.x[1],self.x[3]]), np.array([self.y[1],self.y[3]]), 
+                                                            np.arange(-self.detection_range/2, self.detection_range/2)),
+
+                (2,4) : de.gen_scanning_vectors_linear(2, np.array([self.x[2],self.x[4]]), np.array([self.y[2],self.y[4]]), 
+                                                            np.arange(-self.detection_range/2, self.detection_range/2)),
+
+                (3,0) : de.gen_scanning_vectors_linear(2, np.array([self.x[3],self.x[0]]), np.array([self.y[3],self.y[0]]), 
+                                                            np.arange(-self.detection_range/2, self.detection_range/2)),
+
+                (4,1) : de.gen_scanning_vectors_linear(2, np.array([self.x[4],self.x[1]]), np.array([self.y[4],self.y[1]]), 
+                                                            np.arange(-self.detection_range/2, self.detection_range/2))
+            }
+        return vecs
     
-    def selective_music(self, index = [0, 1, 2, 3, 4]):
+    def selective_music(self, indices):
         """
         Performs Direction of Arrival (DOA) estimation using the MEM algorithm.
         This function also has the option to select which antennas should be used in the approximation with the 'index' -parameter. 
@@ -331,18 +351,12 @@ class KrakenReceiver():
         numpy.ndarray
             Array of estimated DOA angles in degrees.
         """
-
-        x = np.array([self.x[i] for i in index])
-        y = np.array([self.y[i] for i in index])
-        
-        buffer = np.array([self.iq_samples[i] for i in index])
-        buffer_dim = len(index)
+        buffer = np.array([self.iq_samples[i] for i in indices])
 
         spatial_corr_matrix = de.spatial_correlation_matrix(buffer, self.num_samples)
-        scanning_vectors = de.gen_scanning_vectors(buffer_dim, x, y, np.arange(0, self.detection_range))
+        scanning_vectors = self.multi_music_vecs[indices]
         sig_dim = 1
         doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, sig_dim)
-        
         return doa
     
     
@@ -388,7 +402,7 @@ class KrakenReceiver():
                 index_next = index_best + 2
 
             # Preforms a percise DOA approximation using the most optimal pair of antennas.
-            doa_data_1 = kraken.selective_music([index_best, index_next])
+            doa_data_1 = kraken.selective_music((index_best, index_next))
             doa_data_1 = np.divide(np.abs(doa_data_1), np.max(np.abs(doa_data_1)))            
 
             # Finds which side of the semi circle that contains the true angle and identifies the un-true (mirrored) DOA-angle   
@@ -511,9 +525,9 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.doa_plot.showAxis('bottom', False)
         self.layout.addWidget(self.doa_plot, 0, 0, 1, 1)
         
-        # self.fft_plot_0 = pg.PlotWidget(title="FFT Antenna 0")
-        # self.fft_curve_0 = self.fft_plot_0.plot(pen='r')
-        # self.layout.addWidget(self.fft_plot_0, 0, 1, 1, 1)
+        self.fft_plot_0 = pg.PlotWidget(title="FFT Antenna 0")
+        self.fft_curve_0 = self.fft_plot_0.plot(pen='r')
+        self.layout.addWidget(self.fft_plot_0, 0, 1, 1, 1)
         
         # self.fft_plot_1 = pg.PlotWidget(title="FFT Antenna 1")
         # self.fft_curve_1 = self.fft_plot_1.plot(pen='g')
@@ -615,15 +629,15 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
             
                 
-            # freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.daq_sample_rate)  
-            # ant0 = np.abs(fft(kraken.iq_samples[0]))
+            freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.daq_sample_rate)  
+            ant0 = np.abs(fft(kraken.iq_samples[0]))
             # ant1 = np.abs(fft(kraken.iq_samples[1]))
             # ant2 = np.abs(fft(kraken.iq_samples[2]))
             # ant3 = np.abs(fft(kraken.iq_samples[3]))
             # ant4 = np.abs(fft(kraken.iq_samples[4]))  
                 
             
-            # self.fft_curve_0.setData(freqs, ant0)
+            self.fft_curve_0.setData(freqs, ant0)
             # self.fft_curve_1.setData(freqs, ant1)
             # self.fft_curve_2.setData(freqs, ant2)
             # self.fft_curve_3.setData(freqs, ant3)
