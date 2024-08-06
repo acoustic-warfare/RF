@@ -100,13 +100,12 @@ class KrakenSim():
 
         if self.array_type == "ULA":
             spatial_corr_matrix = pa.spatial_correlation_matrix(self.buffer, self.num_samples)
-            scanning_vectors = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
+            scanning_vectors = pa.gen_scanning_vectors_linear(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs, 0.25))
             spatial_corr_matrix = pa.forward_backward_avg(spatial_corr_matrix)
             doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=signal_dimension)
         else:
-            uca = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
-            #uca = pa.gen_scanning_vectors_2(self.num_devices, 0.148857, self.center_freq, np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
-            #ula = pa.gen_scanning_vectors(self.num_devices, np.array([-2.0, -1.0 ,0.0, 1.0, 2.0]) * antenna_distance_ula, np.array([0.0,0.0,0.0,0.0,0.0]), np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
+            uca = pa.gen_scanning_vectors_circular(self.num_devices, antenna_distance, 
+                                               self.center_freq, np.arange(-self.detection_range/2 , self.detection_range/2))
             spatial_corr_matrix = pa.spatial_correlation_matrix(self.buffer, self.num_samples)
             #spatial_corr_matrix = phase_mode_transform(uca, ula, spatial_corr_matrix)
             doa = pa.DOA_MUSIC(spatial_corr_matrix, uca, signal_dimension=signal_dimension)
@@ -398,6 +397,21 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         # self.fft_curve_4 = self.fft_plot_4.plot(pen='c')  # Changed to cyan
         # self.layout.addWidget(self.fft_plot_4, 2, 1, 1, 1)
 
+        self.doa_cartesian_plot = pg.PlotWidget(title="Direction of Arrival (Cartesian)")
+        self.doa_cartesian_curve = self.doa_cartesian_plot.plot(pen=pg.mkPen(pg.mkColor(70,220,0), width=2))
+        self.doa_cartesian_plot.showAxis('top', True)
+        
+        ax = self.doa_cartesian_plot.getAxis('bottom')
+        if kraken.detection_range == 180:
+            num_ticks = 19
+        else:
+            num_ticks = 25
+        ang_ticks = np.linspace(-kraken.detection_range / 2, kraken.detection_range / 2, num_ticks)
+        ax.setTicks([[(round(v), str(round(v))) for v in ang_ticks]])
+        ax2 = self.doa_cartesian_plot.getAxis('top')
+        ax2.setTicks([[(round(v), str(round(v))) for v in ang_ticks]])
+        self.layout.addWidget(self.doa_cartesian_plot, 0, 4, 1, 1) 
+
         self.create_polar_grid()
         self.doa_curve = None  # Initialize doa_curve to None
 
@@ -493,10 +507,12 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         # self.fft_curve_3.setData(freqs, ant3)
         # self.fft_curve_4.setData(freqs, ant4)
 
+        self.doa_cartesian_curve.setData(np.linspace(-kraken.detection_range / 2, kraken.detection_range / 2, len(doa_data)), doa_data)
+
         print(np.argmax(doa_data))
 
 if __name__ == '__main__':
-    num_samples = 1024*64 
+    num_samples = 1024*64
     sample_rate = 2.048e6
     center_freq = 434.4e6
     bandwidth =  2e5 
@@ -523,7 +539,7 @@ if __name__ == '__main__':
 
     kraken = KrakenSim(center_freq, num_samples, sample_rate, gain,    
                             antenna_distance, x, y, "UCA", num_devices = 5, circular = circular,
-                            simulation_angles = [30], simulation_frequencies = [center_freq], simulation_noise = 1e1,
+                            simulation_angles = [30], simulation_frequencies = [center_freq], simulation_noise = 1e-2,
                             f_type = 'FIR', detection_range = 360, music_dim = 1)
     
     app = QtWidgets.QApplication(sys.argv)

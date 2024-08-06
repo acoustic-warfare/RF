@@ -54,7 +54,7 @@ class KrakenReceiver():
         if array_type == 'ULA':
             self.detection_range = 180
             self.scanning_vectors = de.gen_scanning_vectors_linear(self.num_antennas, self.x, self.y, 
-                                                            np.arange(-self.detection_range/2 - 90, self.detection_range/2 -90))
+                                                            np.arange(-self.detection_range/2 - 90, self.detection_range/2 -90)) 
             
         else:
             self.detection_range = 360
@@ -531,15 +531,15 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
             
                 
-            # freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.daq_sample_rate)  
-            # ant0 = np.abs(fft(kraken.iq_samples[0]))
+            #freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.daq_sample_rate)  
+            #ant0 = np.abs(fft(kraken.iq_samples[0]))
             # ant1 = np.abs(fft(kraken.iq_samples[1]))
             # ant2 = np.abs(fft(kraken.iq_samples[2]))
             # ant3 = np.abs(fft(kraken.iq_samples[3]))
             # ant4 = np.abs(fft(kraken.iq_samples[4]))  
                 
             
-            # self.fft_curve_0.setData(freqs, ant0)
+            #self.fft_curve_0.setData(freqs, ant0)
             # self.fft_curve_1.setData(freqs, ant1)
             # self.fft_curve_2.setData(freqs, ant2)
             # self.fft_curve_3.setData(freqs, ant3)

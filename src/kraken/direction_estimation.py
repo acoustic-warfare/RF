@@ -166,7 +166,7 @@ def gen_scanning_vectors_linear(M, x, y, thetas):
     """
     Description:
     ------------
-        This function prepares scanning vectorors for linear antenna array configurations        
+        This function prepares scanning vectorors for linear antenna array configurations.        
         
     Parameters:
     -----------
@@ -292,7 +292,7 @@ def spatial_smoothing(M, iq_samples ,P, direction):
     return np.ascontiguousarray(Rss)
 
 @njit(fastmath=True, cache=True)
-def infer_signal_dimension(correlation_matrix, threshold_ratio=0.3):
+def infer_signal_dimension(correlation_matrix, threshold_ratio=0.2):
     """
     Infers the signal dimension (number of signals) based on the eigenvalues of the correlation matrix.
 
