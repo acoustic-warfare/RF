@@ -14,18 +14,20 @@ class Agent():
     """
 
     An agent that can be used for the 2022 Arena map and the Integration map. It can perform two tasks, go-home and move-to. 
-    The main use of this agent is to be able to change frequency of the Livespectrogram in the QTSpectrogram file.
+    The main use of this agent is to be able to change frequency of the Livespectr ogram in the QTSpectrogram file.
     This agent is based on the examples provided by WARA-PS at https://github.com/wara-ps/waraps-agent-examples.git . 
     For more information about how the agents work, checkout https://api.docs.waraps.org
 
     Attributes:
     spectrogram : LiveSpectrogram
         The spectrogram is a LiveSpectrogram from the file QtSpectrogram.  
+    streamer : PyRtmpStreamer
+        A streamer that starts the streaming to WARA PS
 
     
     """
 
-    def __init__(self, spectrogram) -> None:
+    def __init__(self, spectrogram, streamer) -> None:
         self.gps = GpsClient()
         self.logic = Logic()
 
@@ -37,6 +39,7 @@ class Agent():
         self.connect(self.mqtt_client)
 
         self.spectrogram = spectrogram
+        self.streamer = streamer
 
     def connect(self, client):
         """Connect to the broker using the mqtt client"""
@@ -136,7 +139,26 @@ class Agent():
                         lon = GpsConfig.LONGITUDE
                         alt = GpsConfig.ALTITUDE
 
+                        self.streamer.stop_rtmp_stream()
+                        #self.streamer.stop_local_stream()
+
                         self.logic.task_target = (lat, lon, alt)
+                        
+
+                        self.initialize_speed(task["params"]["speed"])
+
+                    if task["name"] == "set-frequency":
+                        self.logic.task_running = True
+                        self.logic.task_running_uuid = task_uuid
+                        msg_res_json["response"] = "running"
+                        msg_res_json["fail-reason"] = ""
+                        msg_feed_json["status"] = "running"
+
+                        lat = GpsConfig.LATITUDE
+                        lon = GpsConfig.LONGITUDE
+                        alt = GpsConfig.ALTITUDE
+
+                        self.liveSpectrogram.set_frequency(task["params"]["frequency"])
 
                         self.initialize_speed(task["params"]["speed"])
 
