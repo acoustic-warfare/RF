@@ -1,5 +1,5 @@
 #Use an official Python runtime as a parent image
-FROM continuumio/miniconda3
+FROM continuumio/miniconda3 AS base
 
 #Use mamba instead for faster environment creation
 RUN conda install -c conda-forge mamba
@@ -9,8 +9,11 @@ RUN apt-get update && apt-get install -y \
     lsof \
     libgl1-mesa-glx \
     nano \
+    vim \
+    g++ \ 
     libzmq3-dev \
     libusb-1.0-0 \
+    libfmt-dev \
     libgstreamer1.0-dev \
     libgstreamer-plugins-base1.0-dev \
     libgstreamer-plugins-bad1.0-dev \
@@ -37,7 +40,23 @@ COPY environment.yml .
 #Install any dependencies
 RUN conda env create -f environment.yml
 
+FROM base AS streamer-install
+#Install rtmp-streamer library
+SHELL [ "conda", "run", "-n", "kraken", "/bin/bash", "-c"]
+ENV CONDA_DIR=/opt/conda
+ENV RTMP_STREAMER_DIR=/rtmp-stream
+ENV LD_LIBRARY_PATH=${CONDA_DIR}/envs/kraken/lib
+
+RUN git clone https://github.com/acoustic-warfare/RtmpStreamer.git $RTMP_STREAMER_DIR && \
+    cd ${RTMP_STREAMER_DIR} && \
+    meson setup build/ -Dpython-bindings=true --native-file native-file.ini \
+    -Dprefix=$CONDA_DIR/envs/kraken -Dlibdir=lib && \
+    ninja -C build/ && \
+    ninja -C build install
+
+
 #Copy the start.sh script and make it executable
+WORKDIR /src/kraken
 COPY start_doa.sh .
 RUN chmod +x start_doa.sh
 
