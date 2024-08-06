@@ -10,10 +10,11 @@ import _thread
 import time
 import logging
 import gi
-#os.environ['GST_DEBUG'] = "3" #Uncomment to enable GST debug logs
-gi.require_version('Gst', '1.0')
-gi.require_version('GLib', '2.0')
-from gi.repository import Gst, GLib
+from rtmp_streamer import PyRtmpStreamer
+os.environ['GST_DEBUG'] = "2" #Uncomment to enable GST debug logs
+# gi.require_version('Gst', '1.0')
+# gi.require_version('GLib', '2.0')
+#from gi.repository import Gst, GLib
 from threading import Lock
 from struct import pack
 from PyQt5 import QtWidgets
@@ -337,21 +338,22 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.timer.start(0)
 
         if kraken.waraps:
-            Gst.init(None)
+            self.streamer = PyRtmpStreamer(1720, 760)
+            self.streamer.start_stream()
             kraken.logger.info("GStreamer initialized successfully")
             # 1725, 760)
-            self.pipeline = Gst.parse_launch(
-                " appsrc name=doa is_live=true block=true format=GST_FORMAT_TIME caps=video/x-raw,width=1720,format=RGB,height=760 "
-                " ! videoconvert ! x264enc tune=zerolatency speed-preset=superfast bitrate=4000"
-                " ! queue ! flvmux streamable=true ! rtmp2sink location=rtmp://ome.waraps.org/app/KrakenSDR"
-                )
-            
-            self.appsrc = self.pipeline.get_by_name('doa')
-            self.start_time = time.time()
-            ret = self.pipeline.set_state(Gst.State.PLAYING)
-            if ret == Gst.StateChangeReturn.FAILURE:
-                kraken.logger.critical("Unable to set the pipeline to the playing state")
-                raise RuntimeError("Unable to set the pipeline to the playing state.")
+            # self.pipeline = Gst.parse_launch(
+            #     " appsrc name=doa is_live=true block=true format=GST_FORMAT_TIME caps=video/x-raw,width=1720,format=RGB,height=760 "
+            #     " ! videoconvert ! x264enc tune=zerolatency speed-preset=superfast bitrate=4000"
+            #     " ! queue ! flvmux streamable=true ! rtmp2sink location=rtmp://ome.waraps.org/app/KrakenSDR"
+            #     )
+            # 
+            # self.appsrc = self.pipeline.get_by_name('doa')
+            # self.start_time = time.time()
+            # ret = self.pipeline.set_state(Gst.State.PLAYING)
+            # if ret == Gst.StateChangeReturn.FAILURE:
+            #     kraken.logger.critical("Unable to set the pipeline to the playing state")
+            #     raise RuntimeError("Unable to set the pipeline to the playing state.")
                 
 
     def grab_frame(self):
@@ -390,15 +392,17 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         """
         frame = self.grab_frame()
         data = frame.tobytes()
-        buf = Gst.Buffer.new_allocate(None, len(data), None)
-        timestamp = (time.time() - self.start_time) * Gst.SECOND
-        buf.pts = timestamp
-        buf.dts = timestamp
-        buf.duration = Gst.SECOND // 30
-        buf.fill(0, data)
-        self.appsrc.emit('push-buffer', buf)
-        kraken.logger.info("Sent frame to waraps")
+        print(self.streamer.send_frame(data))
         return True
+        # buf = Gst.Buffer.new_allocate(None, len(data), None)
+        # timestamp = (time.time() - self.start_time) * Gst.SECOND
+        # buf.pts = timestamp
+        # buf.dts = timestamp
+        # buf.duration = Gst.SECOND // 30
+        # buf.fill(0, data)
+        # self.appsrc.emit('push-buffer', buf)
+        # kraken.logger.info("Sent frame to waraps")
+        # return True
 
     def initUI(self):
         """
@@ -565,6 +569,6 @@ if __name__ == "__main__":
     app = QtWidgets.QApplication(sys.argv)
     plotter = RealTimePlotter()
     plotter.show()
-    if kraken.waraps:
-        GLib.timeout_add(1000 // 30, plotter.send_frame)
+    # if kraken.waraps:
+    #     GLib.timeout_add(1000 // 30, plotter.send_frame)
     sys.exit(app.exec_())

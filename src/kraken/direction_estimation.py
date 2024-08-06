@@ -194,7 +194,7 @@ def gen_scanning_vectors_linear(M, x, y, thetas):
     
     return np.ascontiguousarray(scanning_vectors)
 
-@njit(fastmath=True, cache=True)
+#@njit(fastmath=True, cache=True)
 def gen_scanning_vectors_circular(M, radius, frequency, thetas):
     """
     Description:
