@@ -105,10 +105,11 @@ class KrakenSim():
             doa = pa.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, signal_dimension=signal_dimension)
         else:
             uca = pa.gen_scanning_vectors(self.num_devices, self.x, self.y, np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
-            ula = pa.gen_scanning_vectors(self.num_devices, np.array([-2.0, -1.0 ,0.0, 1.0, 2.0]) * antenna_distance_ula, np.array([0.0,0.0,0.0,0.0,0.0]), np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
+            #uca = pa.gen_scanning_vectors_2(self.num_devices, 0.148857, self.center_freq, np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
+            #ula = pa.gen_scanning_vectors(self.num_devices, np.array([-2.0, -1.0 ,0.0, 1.0, 2.0]) * antenna_distance_ula, np.array([0.0,0.0,0.0,0.0,0.0]), np.arange(-self.detection_range/2 + self.offs, self.detection_range/2 + self.offs))
             spatial_corr_matrix = pa.spatial_correlation_matrix(self.buffer, self.num_samples)
-            spatial_corr_matrix = phase_mode_transform(uca, ula, spatial_corr_matrix)
-            doa = pa.DOA_MUSIC(spatial_corr_matrix, ula, signal_dimension=signal_dimension)
+            #spatial_corr_matrix = phase_mode_transform(uca, ula, spatial_corr_matrix)
+            doa = pa.DOA_MUSIC(spatial_corr_matrix, uca, signal_dimension=signal_dimension)
         
         return doa
     
@@ -118,7 +119,6 @@ def whiten_transform(A):
     w = eigenvectors @ np.diag(1.0 / np.sqrt(eigenvalues)) @ eigenvectors.T
     return w @ A @ w.T
 
-#Ta 5 samples i taget
 def phase_mode_transform(ula, uca, corr):
     Tr = ula @ uca.conj().T @ np.linalg.inv(uca @ uca.conj().T)
 
@@ -140,23 +140,6 @@ def phase_mode_transform(ula, uca, corr):
     transformed_matrix = Tr @ corr @ Tr.conj().T
 
     return transformed_matrix
-
-# def phase_mode_excitation(uca_data, num_modes=5):
-#     M, L = uca_data.shape
-
-#     # Calculate the DFT matrix
-#     F = np.zeros((M, M), dtype=complex)
-#     for m in range(M):
-#         for n in range(M):
-#             F[m, n] = np.exp(-1j * 2 * np.pi * m * n / M) / np.sqrt(M)
-
-#     # Select the first 'num_modes' rows of the DFT matrix
-#     T = F[:num_modes, :]
-
-#     # Apply the transformation
-#     transformed_data = T @ uca_data
-
-#     return transformed_data
 
 
 def signals_linear(frequencies, angles, num_sensors, num_snapshots, antenna_positions, wavelength=1.0, noise_power=1e1):
@@ -237,7 +220,7 @@ def signals_circular(frequencies, angles, num_sensors, num_snapshots, x, y, wave
     noise = np.sqrt(noise_power) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
     return signals + noise
 
-def signals_linear2(frequencies, angles, distances, num_sensors, num_snapshots, antenna_positions, wavelength=1.0, noise_power=1e-1):
+def signals_linear2(frequencies, angles, distances, num_sensors, num_snapshots, antenna_positions, wavelength=1.0, noise_power=1e-3):
     """
     Generates signals received by sensor array.
 
@@ -298,7 +281,7 @@ def signals_linear2(frequencies, angles, distances, num_sensors, num_snapshots, 
     # Generate and add noise
     noise = np.sqrt(noise_power/2) * (np.random.randn(num_sensors, num_snapshots) + 1j * np.random.randn(num_sensors, num_snapshots))
     
-    return signals + noise
+    return signals + 5 * noise
     
 def signals_arbitrary(frequencies, angles, num_sensors, num_snapshots, x, y, wavelength=1.0, noise_power=1e-3):
     """
@@ -395,9 +378,9 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.doa_plot.showAxis('bottom', False) 
         self.layout.addWidget(self.doa_plot, 0, 0, 1, 1) 
         
-        # self.fft_plot_0 = pg.PlotWidget(title="FFT Antenna 0")
-        # self.fft_curve_0 = self.fft_plot_0.plot(pen='r')
-        # self.layout.addWidget(self.fft_plot_0, 0, 1, 1, 1)
+        self.fft_plot_0 = pg.PlotWidget(title="FFT Antenna 0")
+        self.fft_curve_0 = self.fft_plot_0.plot(pen='r')
+        self.layout.addWidget(self.fft_plot_0, 0, 1, 1, 1)
         
         # self.fft_plot_1 = pg.PlotWidget(title="FFT Antenna 1")
         # self.fft_curve_1 = self.fft_plot_1.plot(pen='g')
@@ -496,15 +479,15 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
         
         
-        #freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.sample_rate)
-        # ant0 = np.abs(fft(kraken.buffer[0]))
+        freqs = np.fft.fftfreq(kraken.num_samples, d=1/kraken.sample_rate)
+        ant0 = np.abs(fft(kraken.buffer[0]))
         # ant1 = np.abs(fft(kraken.buffer[1]))
         # ant2 = np.abs(fft(kraken.buffer[2]))
         # ant3 = np.abs(fft(kraken.buffer[3]))
         # ant4 = np.abs(fft(kraken.buffer[4]))  
         
         self.plot_doa_circle(doa_data)
-        # self.fft_curve_0.setData(freqs, ant0)
+        self.fft_curve_0.setData(freqs, ant0)
         # self.fft_curve_1.setData(freqs, ant1)
         # self.fft_curve_2.setData(freqs, ant2)
         # self.fft_curve_3.setData(freqs, ant3)
@@ -540,7 +523,7 @@ if __name__ == '__main__':
 
     kraken = KrakenSim(center_freq, num_samples, sample_rate, gain,    
                             antenna_distance, x, y, "UCA", num_devices = 5, circular = circular,
-                            simulation_angles = [0], simulation_frequencies = [center_freq], simulation_noise = 1e1,
+                            simulation_angles = [30], simulation_frequencies = [center_freq], simulation_noise = 1e1,
                             f_type = 'FIR', detection_range = 360, music_dim = 1)
     
     app = QtWidgets.QApplication(sys.argv)

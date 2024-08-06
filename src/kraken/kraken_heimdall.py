@@ -42,7 +42,7 @@ class KrakenReceiver():
         self.logger = logging.getLogger(__name__)
 
         
-        center_freq, num_samples, sample_rate, antenna_distance, x, y, array_type, f_type, multi_music, waraps = read_kraken_config()
+        center_freq, num_samples, sample_rate, antenna_distance, x, y, array_type, f_type, waraps = read_kraken_config()
         self.daq_center_freq = center_freq  # MHz
         self.num_samples = num_samples
         self.daq_sample_rate = sample_rate
@@ -50,16 +50,17 @@ class KrakenReceiver():
         self.y = y * antenna_distance
         self.array_type = array_type
         self.num_antennas = x.size
-        self.multi_music = multi_music
         self.f_type = f_type
         if array_type == 'ULA':
             self.detection_range = 180
-            self.scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, 
+            self.scanning_vectors = de.gen_scanning_vectors_linear(self.num_antennas, self.x, self.y, 
                                                             np.arange(-self.detection_range/2 - 90, self.detection_range/2 -90))
+            
         else:
             self.detection_range = 360
-            self.scanning_vectors = de.gen_scanning_vectors(self.num_antennas, self.x, self.y, 
-                                                            np.arange(-self.detection_range/2 , self.detection_range/2))
+            self.scanning_vectors = de.gen_scanning_vectors_circular(self.num_antennas, antenna_distance, 
+                                               self.daq_center_freq, np.arange(-self.detection_range/2 , self.detection_range/2))
+        
         self.waraps = waraps
 
         #Shared memory setup
@@ -238,10 +239,6 @@ class KrakenReceiver():
         iq_header_bytes = buffer[:1024].tobytes()
         self.iq_header.decode_header(iq_header_bytes)
 
-        # Initialization from header - Set channel numbers
-        if self.num_antennas == 0:
-            self.num_antennas = self.iq_header.active_ant_chs
-
         incoming_payload_size = (
             self.iq_header.cpi_length * self.iq_header.active_ant_chs * 2 * (self.iq_header.sample_bit_depth // 8)
         )
@@ -255,6 +252,9 @@ class KrakenReceiver():
             self.iq_samples = np.empty(shape, dtype=np.complex64)
 
         np.copyto(self.iq_samples, iq_samples_in)
+        
+        if self.num_antennas != 5:
+            self.iq_samples = self.iq_samples[:self.num_antennas :]
 
         self.in_shmem_iface.send_ctr_buff_ready(active_buff_index)
 
@@ -316,103 +316,7 @@ class KrakenReceiver():
             self.file = 'recordings/' + timestamp.strftime("%Y-%m-%d_%H:%M:%S") + '.h5'
             with h5py.File(self.file, 'w') as hf:
                 hf.create_dataset('iq_samples', data=self.iq_samples, maxshape=(self.iq_samples.shape[0], None))
-    
-    
-    def selective_music(self, index = [0, 1, 2, 3, 4]):
-        """
-        Performs Direction of Arrival (DOA) estimation using the MEM algorithm.
-        This function also has the option to select which antennas should be used in the approximation with the 'index' -parameter. 
 
-        Takes (optional):
-        array
-            array of int representing the indexes of the antennas to be used in the approximation.
-
-        Returns:
-        numpy.ndarray
-            Array of estimated DOA angles in degrees.
-        """
-
-        x = np.array([self.x[i] for i in index])
-        y = np.array([self.y[i] for i in index])
-        
-        buffer = np.array([self.iq_samples[i] for i in index])
-        buffer_dim = len(index)
-
-        spatial_corr_matrix = de.spatial_correlation_matrix(buffer, self.num_samples)
-        scanning_vectors = de.gen_scanning_vectors(buffer_dim, x, y, np.arange(0, self.detection_range))
-        sig_dim = 1
-        doa = de.DOA_MUSIC(spatial_corr_matrix, scanning_vectors, sig_dim)
-        
-        return doa
-    
-    
-    def improved_circle(self, doa_data):
-            """"
-            Used to improve the precision of the circular antenna configuration by preforming 
-            an additional DOA aproximation with the optimal pair of antennas.
-            
-            1. Recieves the broad DOA approximation with all antennas as doa_data.
-            2. Determines the optimal antenna pair for precise DOA estimation based on the initial angle.
-            3. Identifies which half of the plane contains the true angle and removes mirrored DOA results.
-            4. Calculates and returns the final DOA response.
-            
-            Takes:
-            numpy.ndarray
-            Array of estimated DOA angles in degrees.
-            
-            Returns:
-            numpy.ndarray
-            Array of estimated DOA angles in degrees (But better).
-            
-            """
-            
-            ang_0 = np.argmax(doa_data)
-
-            # Makes reference list for the optimal recieving angles for each antenna pair. 
-            # The last and second-to-last index belongs to the same antenna pair.
-            ang_centers = [[72, 252], [144, 324], [36, 216], [108, 288], [0, 180], [360, 180]] 
-           
-            # Finds the optimal antenna pair for the current angle.
-            ang_center_diffs = [min([abs(c[0] - ang_0), abs(c[1] - ang_0)]) for c in ang_centers]
-            ang_min_diff = min(ang_center_diffs)
-            index_best = ang_center_diffs.index(ang_min_diff)
-            ang_best = ang_centers[index_best]
-
-            #Selects which antennas to use based on the previosly derived optimal antenna pair.
-            if index_best == 5:
-                index_best = 4
-                index_next = 1
-            elif index_best > 2:
-                index_next = index_best - 3
-            else:
-                index_next = index_best + 2
-
-            # Preforms a percise DOA approximation using the most optimal pair of antennas.
-            doa_data_1 = kraken.selective_music([index_best, index_next])
-            doa_data_1 = np.divide(np.abs(doa_data_1), np.max(np.abs(doa_data_1)))            
-
-            # Finds which side of the semi circle that contains the true angle and identifies the un-true (mirrored) DOA-angle   
-            if abs(ang_best[0] - ang_0) > abs(ang_best[1] - ang_0):
-                ang_worst = ang_best[0]
-            else:
-                ang_worst = ang_best[1]
-            
-            # Removes the un-true (mirrored) DOA-angle    
-            if ang_worst < 90: 
-                doa_data_1[ang_worst +270 : ] = 0.0
-                doa_data_1[ : ang_worst +90] = 0.0
-            elif ang_worst > 270: 
-                doa_data_1[ : ang_worst -270] = 0.0
-                doa_data_1[ang_worst -90 : ] = 0.0
-            else:
-                doa_data_1[ang_worst -90 : ang_worst +90] = 0.0
-
-
-            return doa_data_1
-
-    
-    
-    
 class RealTimePlotter(QtWidgets.QMainWindow):
     """
     A PyQt-based GUI window for real-time data visualization of direction of arrival (DOA) and FFT plots.
@@ -435,10 +339,10 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         if kraken.waraps:
             Gst.init(None)
             kraken.logger.info("GStreamer initialized successfully")
-
+            # 1725, 760)
             self.pipeline = Gst.parse_launch(
-                " appsrc name=doa is_live=true block=true format=GST_FORMAT_TIME caps=video/x-raw,width=1280,format=RGB,height=720 "
-                " ! videoconvert ! x264enc tune=zerolatency speed-preset=superfast bitrate=2500"
+                " appsrc name=doa is_live=true block=true format=GST_FORMAT_TIME caps=video/x-raw,width=1720,format=RGB,height=760 "
+                " ! videoconvert ! x264enc tune=zerolatency speed-preset=superfast bitrate=4000"
                 " ! queue ! flvmux streamable=true ! rtmp2sink location=rtmp://ome.waraps.org/app/KrakenSDR"
                 )
             
@@ -467,7 +371,10 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         width = qimage.width()
         height = qimage.height()
         ptr = qimage.bits()
+        print(ptr.getsize())
         ptr.setsize(qimage.byteCount())
+        print(qimage.bytesPerLine())
+        print(ptr.getsize())
         arr = np.array(ptr).reshape(height, width, 3)
         return arr 
     
@@ -498,7 +405,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         Sets up the user interface (UI) layout.
         """
         self.setWindowTitle('Real-Time Data Visualization')
-        self.setGeometry(100, 100, 1280, 720)
+        self.setGeometry(2040, 115, 1720, 760)
         
         self.centralWidget = QtWidgets.QWidget()
         self.setCentralWidget(self.centralWidget)
@@ -509,7 +416,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.doa_plot.setAspectLocked(True) 
         self.doa_plot.showAxis('left', False) 
         self.doa_plot.showAxis('bottom', False)
-        self.layout.addWidget(self.doa_plot, 0, 0, 1, 1)
+        self.layout.addWidget(self.doa_plot, 0, 0, 1, 4)
         
         # self.fft_plot_0 = pg.PlotWidget(title="FFT Antenna 0")
         # self.fft_curve_0 = self.fft_plot_0.plot(pen='r')
@@ -533,7 +440,18 @@ class RealTimePlotter(QtWidgets.QMainWindow):
 
         self.doa_cartesian_plot = pg.PlotWidget(title="Direction of Arrival (Cartesian)")
         self.doa_cartesian_curve = self.doa_cartesian_plot.plot(pen=pg.mkPen(pg.mkColor(70,220,0), width=2))
-        self.layout.addWidget(self.doa_cartesian_plot, 3, 0, 1, 2) 
+        self.doa_cartesian_plot.showAxis('top', True)
+        
+        ax = self.doa_cartesian_plot.getAxis('bottom')
+        if kraken.detection_range == 180:
+            num_ticks = 19
+        else:
+            num_ticks = 25
+        ang_ticks = np.linspace(-kraken.detection_range / 2, kraken.detection_range / 2, num_ticks)
+        ax.setTicks([[(round(v), str(round(v))) for v in ang_ticks]])
+        ax2 = self.doa_cartesian_plot.getAxis('top')
+        ax2.setTicks([[(round(v), str(round(v))) for v in ang_ticks]])
+        self.layout.addWidget(self.doa_cartesian_plot, 0, 4, 1, 1) 
 
         self.create_polar_grid()
         self.doa_curve = None  # Initialize doa_curve to None
@@ -547,8 +465,10 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         rad_limit = np.radians(kraken.detection_range)
         if kraken.detection_range > 180:
             endpoint = False
+            num_ticks = 24
         else:
             endpoint = True
+            num_ticks = 19
         
         angle_ticks = np.linspace(0, rad_limit, kraken.detection_range)
         radius = 1
@@ -559,14 +479,14 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.doa_plot.plot(x, y, pen=pg.mkPen('dark green', width=2))
 
         #Add direction lines (every 20 degrees)
-        for angle in np.linspace(0, rad_limit, 19, endpoint=endpoint):
+        for angle in np.linspace(0, rad_limit, num_ticks, endpoint=endpoint):
             x_line = [0, radius * np.cos(angle)]
             y_line = [0, radius * np.sin(angle)]
             self.doa_plot.plot(x_line, y_line, pen=pg.mkPen('dark green', width=1))
 
         #Add labels (every 20 degrees)
-        for angle in np.linspace(0, rad_limit, 19, endpoint=endpoint):
-            text = f'{int(round(np.degrees(angle-rad_limit/2), -1))}°'
+        for angle in np.linspace(0, rad_limit, num_ticks, endpoint=endpoint):
+            text = f'{int(round(np.degrees(angle-rad_limit/2), 1))}°'
             text_item = pg.TextItem(text, anchor=(0.5, 0.5))
             text_item.setPos(1.1 * np.cos(angle), 1.1 * np.sin(angle))
             self.doa_plot.addItem(text_item)
@@ -591,9 +511,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         if self.doa_curve is not None:
             self.doa_plot.removeItem(self.doa_curve)
 
-        self.doa_curve = self.doa_plot.plot(x_values, y_values, pen=pg.mkPen(pg.mkColor(70,220,0), width=2), 
-                                            fillLevel=0, brush=(255, 255, 0, 50))
-
+        self.doa_curve = self.doa_plot.plot(x_values, y_values, pen=pg.mkPen(pg.mkColor(70,220,0), width=2))
 
     def update_plots(self):
         """
@@ -610,8 +528,6 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             #kraken.record_samples()
 
             doa_data = kraken.music()
-            if kraken.multi_music:
-                doa_data = kraken.improved_circle(doa_data)
             doa_data = np.divide(np.abs(doa_data), np.max(np.abs(doa_data)))
             
                 
@@ -629,9 +545,9 @@ class RealTimePlotter(QtWidgets.QMainWindow):
             # self.fft_curve_3.setData(freqs, ant3)
             # self.fft_curve_4.setData(freqs, ant4)
             self.plot_doa_circle(doa_data)
-            self.doa_cartesian_curve.setData(np.linspace(0, len(doa_data), len(doa_data)), doa_data)
+            self.doa_cartesian_curve.setData(np.linspace(-kraken.detection_range / 2, kraken.detection_range / 2, len(doa_data)), doa_data)
 
-            print(np.argmax(doa_data) - 90) 
+            #print(np.argmax(doa_data) - 90) 
 
         elif frame_type == 1:
             kraken.logger.info("Received Dummy frame")

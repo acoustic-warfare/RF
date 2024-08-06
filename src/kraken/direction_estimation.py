@@ -82,6 +82,56 @@ def DOA_MUSIC(R, scanning_vectors, signal_dimension):
 
     return ADORT
 
+def DOA_MUSIC2(R, scanning_vectors, signal_dimension):
+    """
+    Estimates the Direction of Arrival (DOA) using the MUSIC algorithm.
+
+    Parameters:
+    -----------
+    R : ndarray
+        Spatial correlation matrix.
+    scanning_vectors : ndarray
+        Array of scanning vectors.
+    signal_dimension : int
+        Number of signal sources.
+
+    Returns:
+    --------
+    ADORT : ndarray
+        Array of DOA estimates. If input dimensions are incorrect, returns an array with a single element (-1 or -2).
+    """
+    # --> Input check
+    if R[:, 0].size != R[0, :].size:
+        print("ERROR: Correlation matrix is not quadratic")
+        return np.ones(1, dtype=np.complex64) * -1  
+
+    if R[:, 0].size != scanning_vectors[:, 0].size:
+        print("ERROR: Correlation matrix dimension does not match with the antenna array dimension")
+        return np.ones(1, dtype=np.complex64) * -2
+
+    ADORT = np.zeros(scanning_vectors[0, :].size, dtype=np.complex64)
+    M = R[:, 0].size  
+
+    # --- Calculation ---
+    # Determine eigenvectors and eigenvalues
+    sigmai, vi = lin.eig(R)
+    sigmai = np.abs(sigmai)
+
+    idx = sigmai.argsort()[::-1]  # Sort eigenvectors by eigenvalues, smallest to largest
+    vi = vi[:, idx]
+
+    E = vi[:, :signal_dimension] 
+
+    E_ct = E @ E.conj().T
+    theta_index = 0
+    for i in range(scanning_vectors[0, :].size):
+        S_theta_ = scanning_vectors[:, i]
+        S_theta_ = np.ascontiguousarray(S_theta_.T)
+        ADORT[theta_index] = np.abs(S_theta_.conj().T @ E_ct @ S_theta_)
+        theta_index += 1
+
+    return ADORT
+
 @njit(fastmath=True, cache=True)
 def forward_backward_avg(R):
     """
@@ -110,7 +160,7 @@ def forward_backward_avg(R):
     return np.ascontiguousarray(R_fb)
 
 @njit(fastmath=True, cache=True)
-def gen_scanning_vectors(M, x, y, thetas):
+def gen_scanning_vectors_linear(M, x, y, thetas):
     """
     Description:
     ------------
@@ -143,6 +193,31 @@ def gen_scanning_vectors(M, x, y, thetas):
     
     return np.ascontiguousarray(scanning_vectors)
 
+
+def gen_scanning_vectors_circular(M, radius, frequency, thetas):
+    
+    # Speed of light in meters per second
+    c = 299792458
+
+    # Wavelength of the signal
+    wavelength = c / frequency
+    
+    # Angle of each antenna element on the circle
+    angles = np.linspace(0, 2 * np.pi, M, endpoint=False)
+
+    # Preallocate scanning vectors array
+    scanning_vectors = np.zeros((M, thetas.size), dtype=np.complex64)
+    
+    for i in range(thetas.size):        
+        theta_rad = np.deg2rad(thetas[i])
+        
+        # Calculate the scanning vector for each incident angle
+        #scanning_vectors[:, i] = np.exp(
+        #    1j * 2 * np.pi / wavelength * radius * (np.cos(angles) * np.cos(theta_rad) + np.sin(angles) * np.sin(theta_rad))
+        #)
+        scanning_vectors[:, i] = np.exp(1j * 2*np.pi * radius / wavelength * (np.cos(theta_rad - angles)))
+    
+    return np.ascontiguousarray(scanning_vectors)
 
 @njit(fastmath=True, cache=True)
 def spatial_smoothing(M, iq_samples ,P, direction): 
