@@ -21,9 +21,12 @@ dependencies:
   - gst-plugins-bad
   - gst-plugins-ugly
   - gst-libav
-  - gst-plugins-base            
+  - gst-plugins-base
   - x264
   - libxcb
   - pylibiio
   - paho-mqtt
   - haversine
+  - conda-forge::meson
+  - conda-forge::ninja
+  - conda-forge::cython
