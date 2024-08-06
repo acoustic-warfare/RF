@@ -1,6 +1,7 @@
 import numpy as np
 from numpy import linalg as lin
 from numba import njit
+import sys
 
 #This file contains numba optimized code from the pyargus library
 
@@ -85,7 +86,7 @@ def DOA_MUSIC(R, scanning_vectors, signal_dimension):
 def DOA_MUSIC_SIGNAL_SUBSPACE(R, scanning_vectors, signal_dimension):
     """
     Estimates the Direction of Arrival (DOA) using the MUSIC algorithm.
-    This version of music uses the signal subspace instead of the noise subspace
+    This version of music uses the signal subspace instead of the noise subspace.
 
     Parameters:
     -----------
@@ -228,8 +229,7 @@ def gen_scanning_vectors_circular(M, radius, frequency, thetas):
     # Wavelength of the signal
     wavelength = c / frequency
     
-    # Angle of each antenna element on the circle
-    angles = np.linspace(0, 2 * np.pi, M, endpoint=False)
+    angles = np.arange(0, 2 * np.pi, 2*np.pi/5)
 
     # Preallocate scanning vectors array
     scanning_vectors = np.zeros((M, thetas.size), dtype=np.complex64)
