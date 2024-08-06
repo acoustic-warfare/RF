@@ -161,7 +161,8 @@ class Agent():
                         self.logic.task_target = (lat, lon, alt)
 
                     if task["name"] == "start-stream":
-                        self.logic.stream_running = True
+                        self.logic.task_running = True
+                        self.logic.streaming = True
                         self.logic.task_running_uuid = task_uuid
                         msg_res_json["response"] = "running"
                         msg_res_json["fail-reason"] = ""

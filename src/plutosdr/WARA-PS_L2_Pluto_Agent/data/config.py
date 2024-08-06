@@ -1,6 +1,5 @@
 import uuid
 import random
-import string
 import math
 import os
 
@@ -18,8 +17,8 @@ class AgentConfig:
     TASKS_AVAILABLE = [
         {"name": "go-home", "signals": ["$abort", "$enough", "$pause", "$continue"]},
         # {"name": "move-to", "signals": ["$abort", "$enough", "$pause", "$continue"]},
-        {"name": "change-frequency", "signals": ["$abort", "$enough", "$pause", "$continue"]},
-        {"name": "start-stream", "signals": ["$abort", "$enough", "$pause", "$continue"]}
+        {"name": "change-frequency", "signals": ["$abort"]},
+        {"name": "start-stream", "signals": ["$pause", "$continue"]}
         ]
 
 
