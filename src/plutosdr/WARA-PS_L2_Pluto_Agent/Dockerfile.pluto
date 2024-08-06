@@ -6,46 +6,48 @@ RUN conda install -c conda-forge mamba
 
 # Install necessary packages
 RUN apt-get update && apt-get install -y \
- lsof \
-    libgl1-mesa-glx \
-    nano \
-    libzmq3-dev \
-    libusb-1.0-0 \
-    libglib2.0-dev \
-    libgtk-3-dev \
-    libgtkdatabox-dev \
-    libmatio-dev \
-    libfftw3-dev \
-    libxml2 \
-    libxml2-dev \
-    bison \
-    flex \
-    libavahi-common-dev \
-    libavahi-client-dev \
-    libcurl4-openssl-dev \
-    libjansson-dev \
-    libiio-dev \
-    libaio-dev \
-    libserialport-dev \
-    libgstreamer1.0-dev \
-    libgstreamer-plugins-base1.0-dev \
-    libgstreamer-plugins-bad1.0-dev \
-    gstreamer1.0-plugins-base \
-    gstreamer1.0-plugins-good \
-    gstreamer1.0-plugins-bad \
-    gstreamer1.0-plugins-ugly \
-    gstreamer1.0-libav \
-    gstreamer1.0-tools \
-    gstreamer1.0-x \
-    gstreamer1.0-alsa \
-    gstreamer1.0-gl \
-    gstreamer1.0-gtk3 \
-    gstreamer1.0-qt5 \
-    gstreamer1.0-pulseaudio && \
-    rm -rf /var/lib/apt/lists/*
+   lsof \
+   libgl1-mesa-glx \
+   nano \
+   libzmq3-dev \
+   libusb-1.0-0 \
+   libglib2.0-dev \
+   libgtk-3-dev \
+   libgtkdatabox-dev \
+   libmatio-dev \
+   libfftw3-dev \
+   libxml2 \
+   libxml2-dev \
+   bison \
+   flex \
+   libavahi-common-dev \
+   libavahi-client-dev \
+   libcurl4-openssl-dev \
+   libjansson-dev \
+   libiio-dev \
+   libaio-dev \
+   libserialport-dev \
+   libfmt-dev \
+   g++ \
+   libgstreamer1.0-dev \
+   libgstreamer-plugins-base1.0-dev \
+   libgstreamer-plugins-bad1.0-dev \
+   gstreamer1.0-plugins-base \
+   gstreamer1.0-plugins-good \
+   gstreamer1.0-plugins-bad \
+   gstreamer1.0-plugins-ugly \
+   gstreamer1.0-libav \
+   gstreamer1.0-tools \
+   gstreamer1.0-x \
+   gstreamer1.0-alsa \
+   gstreamer1.0-gl \
+   gstreamer1.0-gtk3 \
+   gstreamer1.0-qt5 \
+   gstreamer1.0-pulseaudio && \
+   rm -rf /var/lib/apt/lists/*
 
 
-    
+
 
 # Set the working directory in the container
 WORKDIR /src/plutosdr/WARA-PS_L2_Pluto_Agent
@@ -61,6 +63,18 @@ RUN conda env create -f environment.yml
 # Ensure the environment is activated
 SHELL ["conda", "run", "-n", "pluto", "/bin/bash", "-c"]
 
+ENV CONDA_DIR=/opt/conda
+ENV RTMP_STREAMER_DIR=/rtmp-streamera
+ENV LD_LIBRARY_PATH=${CONDA_DIR}/envs/pluto/lib
+
+RUN git clone https://github.com/acoustic-warfare/RtmpStreamer.git $RTMP_STREAMER_DIR && \
+   cd ${RTMP_STREAMER_DIR} && \
+   meson setup build/ -Dpython-bindings=true --native-file native-file.ini \
+   -Dprefix=$CONDA_DIR/envs/pluto -Dlibdir=lib && \
+   ninja -C build/ && \
+   ninja -C build install
+
+WORKDIR /src/plutosdr/WARA-PS_L2_Pluto_Agent
 # Copy the rest of the application code into the container
 COPY . .
 
@@ -68,4 +82,5 @@ COPY . .
 EXPOSE 1935
 
 # Run the Spectrogram
-CMD ["conda", "run", "-n", "pluto", "python", "./main.py"]
+# CMD ["conda", "run", "-n", "pluto", "python", "./main.py"]
+ENTRYPOINT [ "./start_waterfall.sh" ]
