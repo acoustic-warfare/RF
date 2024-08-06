@@ -6,8 +6,7 @@ import gi
 import os
 os.environ['GST_DEBUG'] = "3" #Uncomment to enable GST debug logs
 gi.require_version('Gst', '1.0')
-gi.require_version('GLib', '2.0')
-from gi.repository import Gst, GLib
+from gi.repository import Gst
 import time
 import adi
 import numpy as np

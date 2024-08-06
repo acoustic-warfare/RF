@@ -17,8 +17,9 @@ class AgentConfig:
     UUID = str(uuid.uuid4())  # Unique UUID
     TASKS_AVAILABLE = [
         {"name": "go-home", "signals": ["$abort", "$enough", "$pause", "$continue"]},
-        {"name": "move-to", "signals": ["$abort", "$enough", "$pause", "$continue"]},
-        {"name": "set-frequency", "signals": ["$abort", "$enough", "$pause", "$continue"]}
+        # {"name": "move-to", "signals": ["$abort", "$enough", "$pause", "$continue"]},
+        {"name": "change-frequency", "signals": ["$abort", "$enough", "$pause", "$continue"]},
+        {"name": "start-stream", "signals": ["$abort", "$enough", "$pause", "$continue"]}
         ]
 
 

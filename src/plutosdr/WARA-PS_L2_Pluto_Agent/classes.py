@@ -33,6 +33,7 @@ class Logic:
 
         # Task variables
         self.task_running: bool = False
+        self.stream_running: bool = False
         self.task_pause_flag: bool = False
         self.task_running_uuid: str = ""
         self.task_paused: bool = False

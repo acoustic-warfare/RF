@@ -106,26 +106,26 @@ class Agent():
                 }
 
                 if self.is_task_supported(task) and not self.logic.task_running:
-                    if task["name"] == "move-to":
-                        # We technically want to change the frequency however there is no such task. 
-                        # Therefore we use the move-to task, where the altitude represents the frequency in MHz
-                        #  and then we move the agent mostly for funsies and for the task to finish correctly. :))
-                        self.logic.task_running = True
-                        self.logic.task_running_uuid = task_uuid
-                        msg_res_json["response"] = "running"
-                        msg_res_json["fail-reason"] = ""
-                        msg_feed_json["status"] = "running"
+                    # if task["name"] == "move-to":
+                    #     # We technically want to change the frequency however there is no such task. 
+                    #     # Therefore we use the move-to task, where the altitude represents the frequency in MHz
+                    #     #  and then we move the agent mostly for funsies and for the task to finish correctly. :))
+                    #     self.logic.task_running = True
+                    #     self.logic.task_running_uuid = task_uuid
+                    #     msg_res_json["response"] = "running"
+                    #     msg_res_json["fail-reason"] = ""
+                    #     msg_feed_json["status"] = "running"
 
-                        self.spectrogram.set_frequency(float(task["params"]["waypoint"]["altitude"]))
+                    #     self.spectrogram.set_frequency(float(task["params"]["waypoint"]["altitude"]))
 
 
-                        lat = task["params"]["waypoint"]["latitude"]
-                        lon = task["params"]["waypoint"]["longitude"]
-                        alt = task["params"]["waypoint"]["altitude"]
+                    #     lat = task["params"]["waypoint"]["latitude"]
+                    #     lon = task["params"]["waypoint"]["longitude"]
+                    #     alt = task["params"]["waypoint"]["altitude"]
 
-                        self.logic.task_target = (lat, lon, alt)
+                    #     self.logic.task_target = (lat, lon, alt)
 
-                        self.initialize_speed(task["params"]["speed"])
+                    #     self.initialize_speed(task["params"]["speed"])
 
                         
                     if task["name"] == "go-home":
@@ -135,9 +135,7 @@ class Agent():
                         msg_res_json["fail-reason"] = ""
                         msg_feed_json["status"] = "running"
 
-                        lat = GpsConfig.LATITUDE
-                        lon = GpsConfig.LONGITUDE
-                        alt = GpsConfig.ALTITUDE
+
 
                         self.streamer.stop_rtmp_stream()
                         #self.streamer.stop_local_stream()
@@ -147,20 +145,36 @@ class Agent():
 
                         self.initialize_speed(task["params"]["speed"])
 
-                    if task["name"] == "set-frequency":
+                    if task["name"] == "change-frequency":
                         self.logic.task_running = True
                         self.logic.task_running_uuid = task_uuid
                         msg_res_json["response"] = "running"
                         msg_res_json["fail-reason"] = ""
                         msg_feed_json["status"] = "running"
 
+                        self.spectrogram.set_frequency(task["params"]["frequency"])
+
                         lat = GpsConfig.LATITUDE
                         lon = GpsConfig.LONGITUDE
                         alt = GpsConfig.ALTITUDE
 
-                        self.liveSpectrogram.set_frequency(task["params"]["frequency"])
+                        self.logic.task_target = (lat, lon, alt)
 
-                        self.initialize_speed(task["params"]["speed"])
+                    if task["name"] == "start-stream":
+                        self.logic.stream_running = True
+                        self.logic.task_running_uuid = task_uuid
+                        msg_res_json["response"] = "running"
+                        msg_res_json["fail-reason"] = ""
+                        msg_feed_json["status"] = "running"
+
+                        self.streamer.start_rtmp_stream()
+
+                        lat = GpsConfig.LATITUDE
+                        lon = GpsConfig.LONGITUDE
+                        alt = GpsConfig.ALTITUDE
+
+                        self.logic.task_target = (lat, lon, alt)
+
 
 
                 else:

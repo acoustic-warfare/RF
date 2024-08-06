@@ -7,12 +7,6 @@ from QtSpectrogram import LiveSpectrogram, RealTimePlotter
 import adi
 import sys
 from PyQt5 import QtWidgets, QtCore
-import gi
-import os
-os.environ['GST_DEBUG'] = "3" #Uncomment to enable GST debug logs
-gi.require_version('Gst', '1.0')
-gi.require_version('GLib', '2.0')
-from gi.repository import GLib
 import time
 from rtmp_streamer import PyRtmpStreamer
 
@@ -42,8 +36,8 @@ def main():
     frames = 120
 
     stream_name = "rtmp://ome.waraps.org/app/plutosdr"
-    name_bytes = bytes(stream_name, 'utf-8')
-    streamer = PyRtmpStreamer(1280, 720, name_bytes)
+    
+    streamer = PyRtmpStreamer(1280, 720, stream_name)
 
     liveSpectrogram = LiveSpectrogram(frames, num_samples, samp_rate, sdr, center_freq, bandwidth)
     app = QtWidgets.QApplication(sys.argv)
@@ -98,7 +92,6 @@ def main():
         agent_thread.run = start_agent
         agent_thread.start()
 
-        GLib.timeout_add(1000 // 30, plotter.send_frame)
 
     
     plotter.show()
