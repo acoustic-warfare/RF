@@ -63,14 +63,14 @@ RUN conda env create -f environment.yml
 # Ensure the environment is activated
 SHELL ["conda", "run", "-n", "pluto", "/bin/bash", "-c"]
 
-ENV CONDA_DIR=/opt/conda
-ENV RTMP_STREAMER_DIR=/rtmp-streamera
-ENV LD_LIBRARY_PATH=${CONDA_DIR}/envs/pluto/lib
+ENV RTMP_STREAMER_DIR=/rtmp
+ENV PLUTO_CONDA_DIR=/opt/conda/envs/pluto
+ENV LD_LIBRARY_PATH=${PLUTO_CONDA_DIR}/lib
 
 RUN git clone https://github.com/acoustic-warfare/RtmpStreamer.git $RTMP_STREAMER_DIR && \
    cd ${RTMP_STREAMER_DIR} && \
    meson setup build/ -Dpython-bindings=true --native-file native-file.ini \
-   -Dprefix=$CONDA_DIR/envs/pluto -Dlibdir=lib && \
+   -Dprefix=${PLUTO_CONDA_DIR} -Dlibdir=lib && \
    ninja -C build/ && \
    ninja -C build install
 
