@@ -32,7 +32,7 @@ class Logic:
         self.tasks_available = AgentConfig.TASKS_AVAILABLE
 
         # Task variables
-        self.task_running: bool = False
+        self.streaming: bool = False
         self.task_pause_flag: bool = False
         self.task_running_uuid: str = ""
         self.task_paused: bool = False

@@ -14,18 +14,20 @@ class Agent():
     """
 
     An agent that can be used for the 2022 Arena map and the Integration map. It can perform two tasks, go-home and move-to. 
-    The main use of this agent is to be able to change frequency of the Livespectrogram in the QTSpectrogram file.
+    The main use of this agent is to be able to change frequency of the Livespectr ogram in the QTSpectrogram file.
     This agent is based on the examples provided by WARA-PS at https://github.com/wara-ps/waraps-agent-examples.git . 
     For more information about how the agents work, checkout https://api.docs.waraps.org
 
     Attributes:
     spectrogram : LiveSpectrogram
         The spectrogram is a LiveSpectrogram from the file QtSpectrogram.  
+    streamer : PyRtmpStreamer
+        A streamer that starts the streaming to WARA PS
 
     
     """
 
-    def __init__(self, spectrogram) -> None:
+    def __init__(self, spectrogram, streamer) -> None:
         self.gps = GpsClient()
         self.logic = Logic()
 
@@ -37,6 +39,7 @@ class Agent():
         self.connect(self.mqtt_client)
 
         self.spectrogram = spectrogram
+        self.streamer = streamer
 
     def connect(self, client):
         """Connect to the broker using the mqtt client"""
@@ -103,34 +106,61 @@ class Agent():
                 }
 
                 if self.is_task_supported(task) and not self.logic.task_running:
-                    if task["name"] == "move-to":
-                        # We technically want to change the frequency however there is no such task. 
-                        # Therefore we use the move-to task, where the altitude represents the frequency in MHz
-                        #  and then we move the agent mostly for funsies and for the task to finish correctly. :))
-                        self.logic.task_running = True
-                        self.logic.task_running_uuid = task_uuid
-                        msg_res_json["response"] = "running"
-                        msg_res_json["fail-reason"] = ""
-                        msg_feed_json["status"] = "running"
+                    # if task["name"] == "move-to":
+                    #     # If we want to frequency using the WARA PS 2022 Arena we do not have the change-frequency 
+                    #     # implemnted and therefore we "cheat" by using move-to instead.
+                    #     # Therefore we use the move-to task, where the altitude represents the frequency in MHz
+                    #     #  and then we move the agent mostly for funsies and for the task to finish correctly. :))
+                    #     self.logic.task_running = True
+                    #     self.logic.task_running_uuid = task_uuid
+                    #     msg_res_json["response"] = "running"
+                    #     msg_res_json["fail-reason"] = ""
+                    #     msg_feed_json["status"] = "running"
 
-                        self.spectrogram.set_frequency(float(task["params"]["waypoint"]["altitude"]))
+                    #     self.spectrogram.set_frequency(float(task["params"]["waypoint"]["altitude"]))
 
 
-                        lat = task["params"]["waypoint"]["latitude"]
-                        lon = task["params"]["waypoint"]["longitude"]
-                        alt = task["params"]["waypoint"]["altitude"]
+                    #     lat = task["params"]["waypoint"]["latitude"]
+                    #     lon = task["params"]["waypoint"]["longitude"]
+                    #     alt = task["params"]["waypoint"]["altitude"]
 
-                        self.logic.task_target = (lat, lon, alt)
+                    #     self.logic.task_target = (lat, lon, alt)
 
-                        self.initialize_speed(task["params"]["speed"])
+                    #     self.initialize_speed(task["params"]["speed"])
 
                         
-                    if task["name"] == "go-home":
+                    # if task["name"] == "go-home":
+                    #     # A way of implementing the functionality to stop stream in the WARA PS 2022 Arena.
+                    #     self.logic.task_running = True
+                    #     self.logic.task_running_uuid = task_uuid
+                    #     msg_res_json["response"] = "running"
+                    #     msg_res_json["fail-reason"] = ""
+                    #     msg_feed_json["status"] = "running"
+
+                    #     lat = GpsConfig.LATITUDE
+                    #     lon = GpsConfig.LONGITUDE
+                    #     alt = GpsConfig.ALTITUDE
+
+                    #     self.logic.task_target = (lat, lon, alt)
+
+                    #     self.initialize_speed(task["params"]["speed"])
+
+
+
+
+                    #     self.streamer.stop_rtmp_stream()
+                    #     #self.streamer.stop_local_stream()
+
+        
+                    if task["name"] == "change-frequency":
+                        #use atlas
                         self.logic.task_running = True
                         self.logic.task_running_uuid = task_uuid
                         msg_res_json["response"] = "running"
                         msg_res_json["fail-reason"] = ""
                         msg_feed_json["status"] = "running"
+
+                        self.spectrogram.set_frequency(task["params"]["frequency"])
 
                         lat = GpsConfig.LATITUDE
                         lon = GpsConfig.LONGITUDE
@@ -138,8 +168,21 @@ class Agent():
 
                         self.logic.task_target = (lat, lon, alt)
 
-                        self.initialize_speed(task["params"]["speed"])
+                    if task["name"] == "start-stream":
+                        #use atlas
+                        self.logic.task_running = True
+                        self.logic.task_running_uuid = task_uuid
+                        msg_res_json["response"] = "running"
+                        msg_res_json["fail-reason"] = ""
+                        msg_feed_json["status"] = "running"
 
+                        self.streamer.start_rtmp_stream()
+
+                        lat = GpsConfig.LATITUDE
+                        lon = GpsConfig.LONGITUDE
+                        alt = GpsConfig.ALTITUDE
+
+                        self.logic.task_target = (lat, lon, alt)
 
                 else:
                     if self.logic.task_running:  # Task running

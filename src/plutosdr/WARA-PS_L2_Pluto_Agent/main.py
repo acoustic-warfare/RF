@@ -7,13 +7,9 @@ from QtSpectrogram import LiveSpectrogram, RealTimePlotter
 import adi
 import sys
 from PyQt5 import QtWidgets, QtCore
-import gi
-import os
-os.environ['GST_DEBUG'] = "3" #Uncomment to enable GST debug logs
-gi.require_version('Gst', '1.0')
-gi.require_version('GLib', '2.0')
-from gi.repository import GLib
 import time
+from rtmp_streamer import PyRtmpStreamer
+
 
 
 def main():
@@ -24,7 +20,7 @@ def main():
     rx_mode = "manual"
     rx_gain = 70
     bandwidth = int(30e6)
-    waraps = False
+    waraps = True
 
     # Creates the PlutoSDR and sets the properties
     sdr = adi.ad9361(uri='ip:192.168.2.1')
@@ -39,9 +35,13 @@ def main():
     # Number of FFTs/segments that the window will contain
     frames = 120
 
+    stream_name = "rtmp://ome.waraps.org/app/plutosdr"
+    
+    streamer = PyRtmpStreamer(1280, 720, stream_name)
+
     liveSpectrogram = LiveSpectrogram(frames, num_samples, samp_rate, sdr, center_freq, bandwidth)
     app = QtWidgets.QApplication(sys.argv)
-    plotter = RealTimePlotter(liveSpectrogram, waraps)
+    plotter = RealTimePlotter(liveSpectrogram, waraps, streamer)
 
     # Puts and runs the LiveSpectrogram in another thread
     liveSpectrogram.data_ready.connect(plotter.update_plot)
@@ -49,6 +49,9 @@ def main():
     liveSpectrogram.moveToThread(thread)
     thread.started.connect(liveSpectrogram.start)
     thread.start()
+
+
+
 
     if waraps:
 
@@ -66,7 +69,7 @@ def main():
                     MqttConfig.WARAPS_TOPIC_BASE = agent_topic
                     MqttConfig.WARAPS_LISTEN_TOPIC = f"{agent_topic}/exec/command"
 
-                my_agent = Agent(liveSpectrogram)
+                my_agent = Agent(liveSpectrogram, streamer)
 
                 # Listen for incoming messages and send agent data 'rate' times per second
                 rate: float = 1.0 / my_agent.logic.rate
@@ -89,7 +92,6 @@ def main():
         agent_thread.run = start_agent
         agent_thread.start()
 
-        GLib.timeout_add(1000 // 30, plotter.send_frame)
 
     
     plotter.show()
