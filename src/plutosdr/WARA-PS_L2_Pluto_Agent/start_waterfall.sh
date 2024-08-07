@@ -16,5 +16,5 @@ do
         c) sudo py3clean . ;;
     esac
 done
-echo $PYTHON_EXECUTABLE
 "$PYTHON_EXECUTABLE" main.py
+
