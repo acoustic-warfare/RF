@@ -218,27 +218,6 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         ptr.setsize(qimage.byteCount())
         arr = np.array(ptr).reshape(height, width, 3)
         return arr 
-    
-    def send_frame(self):
-        """
-        Capture the current frame and send it as a GStreamer buffer.
-
-        This function captures the current frame using the `grab_frame` method, converts the frame to a byte array, 
-        and sends it to a GStreamer pipeline. It timestamps the buffer and sets its duration for a 30 FPS stream.
-
-        Returns:
-            bool: Always returns True.
-        """
-        frame = self.grab_frame()
-        data = frame.tobytes()
-        buf = Gst.Buffer.new_allocate(None, len(data), None)
-        timestamp = (time.time() - self.start_time) * Gst.SECOND
-        buf.pts = timestamp
-        buf.dts = timestamp
-        buf.duration = Gst.SECOND // 30
-        buf.fill(0, data)
-        self.appsrc.emit('push-buffer', buf)
-        return True
 
         
     @QtCore.pyqtSlot(np.ndarray)
