@@ -133,7 +133,7 @@ class RealTimePlotter(QtWidgets.QMainWindow):
         self.waraps = waraps
 
         self.streamer = streamer
-        self.streamer.start_local_stream() 
+        #self.streamer.start_local_stream() 
         
         if self.waraps:
             self.streamer.start_rtmp_stream()

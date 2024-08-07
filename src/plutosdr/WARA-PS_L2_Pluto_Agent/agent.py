@@ -107,7 +107,8 @@ class Agent():
 
                 if self.is_task_supported(task) and not self.logic.task_running:
                     # if task["name"] == "move-to":
-                    #     # We technically want to change the frequency however there is no such task. 
+                    #     # If we want to frequency using the WARA PS 2022 Arena we do not have the change-frequency 
+                    #     # implemnted and therefore we "cheat" by using move-to instead.
                     #     # Therefore we use the move-to task, where the altitude represents the frequency in MHz
                     #     #  and then we move the agent mostly for funsies and for the task to finish correctly. :))
                     #     self.logic.task_running = True
@@ -128,24 +129,31 @@ class Agent():
                     #     self.initialize_speed(task["params"]["speed"])
 
                         
-                    if task["name"] == "go-home":
-                        self.logic.task_running = True
-                        self.logic.task_running_uuid = task_uuid
-                        msg_res_json["response"] = "running"
-                        msg_res_json["fail-reason"] = ""
-                        msg_feed_json["status"] = "running"
+                    # if task["name"] == "go-home":
+                    #     # A way of implementing the functionality to stop stream in the WARA PS 2022 Arena.
+                    #     self.logic.task_running = True
+                    #     self.logic.task_running_uuid = task_uuid
+                    #     msg_res_json["response"] = "running"
+                    #     msg_res_json["fail-reason"] = ""
+                    #     msg_feed_json["status"] = "running"
+
+                    #     lat = GpsConfig.LATITUDE
+                    #     lon = GpsConfig.LONGITUDE
+                    #     alt = GpsConfig.ALTITUDE
+
+                    #     self.logic.task_target = (lat, lon, alt)
+
+                    #     self.initialize_speed(task["params"]["speed"])
 
 
 
-                        self.streamer.stop_rtmp_stream()
-                        #self.streamer.stop_local_stream()
 
-                        self.logic.task_target = (lat, lon, alt)
-                        
+                    #     self.streamer.stop_rtmp_stream()
+                    #     #self.streamer.stop_local_stream()
 
-                        self.initialize_speed(task["params"]["speed"])
-
+        
                     if task["name"] == "change-frequency":
+                        #use atlas
                         self.logic.task_running = True
                         self.logic.task_running_uuid = task_uuid
                         msg_res_json["response"] = "running"
@@ -161,6 +169,7 @@ class Agent():
                         self.logic.task_target = (lat, lon, alt)
 
                     if task["name"] == "start-stream":
+                        #use atlas
                         self.logic.task_running = True
                         self.logic.streaming = True
                         self.logic.task_running_uuid = task_uuid
@@ -175,8 +184,6 @@ class Agent():
                         alt = GpsConfig.ALTITUDE
 
                         self.logic.task_target = (lat, lon, alt)
-
-
 
                 else:
                     if self.logic.task_running:  # Task running
