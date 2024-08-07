@@ -7,17 +7,17 @@ import os
 class AgentConfig:
 
     NAME = f"plutosdr"  # Base name of agent.
-    TYPE = "air"  # Type of agent.
+    TYPE = "unit"  # Type of agent.
     DESCRIPTION = "Pluto_L2_agent"  # Description of agent.
-    DOMAIN = "air"  # The domain for the agent (lowercase): [ground, surface, subsurface, air].
+    DOMAIN = "ground"  # The domain for the agent (lowercase): [ground, surface, subsurface, air].
     SIM_REAL = "simulation"  # Is the agent simulated or real: [simulation, real].
     LEVEL = ["sensor", "direct execution"]  # Define agent level.
     UPDATE_RATE = 3  # Rate
     UUID = str(uuid.uuid4())  # Unique UUID
     TASKS_AVAILABLE = [
-        {"name": "move-to", "signals": ["$abort", "$enough", "$pause", "$continue"]},
-        {"name": "go-home", "signals": ["$abort", "$enough", "$pause", "$continue"]},
-        {"name": "drop", "signals": ["$abort", "$enough", "$pause", "$continue"]},
+        # {"name": "move-to", "signals": ["$abort", "$enough", "$pause", "$continue"]},
+        # {"name": "go-home", "signals": ["$abort", "$enough", "$pause", "$continue"]},
+        # {"name": "drop", "signals": ["$abort", "$enough", "$pause", "$continue"]},
         {"name": "change-frequency", "signals": ["$abort"]},
         {"name": "start-stream", "signals": ["$pause", "$continue"]}
         ]
