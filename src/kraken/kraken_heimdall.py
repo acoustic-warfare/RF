@@ -9,7 +9,6 @@ import pyqtgraph as pg
 import _thread
 import time
 import logging
-import gi
 from rtmp_streamer import PyRtmpStreamer
 from threading import Lock
 from struct import pack

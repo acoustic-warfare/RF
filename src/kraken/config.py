@@ -90,9 +90,9 @@ sample_rate = int(2.048e6)
 center_freq = int(433.9e6)
 gain = 40
 # #Linear Setup
-# y = np.array([0, 0, 0, 0, 0])
-# x = np.array([-2, -1, 0, 1, 2])
-# antenna_distance = 0.35
+y = np.array([0, 0, 0, 0, 0])
+x = np.array([-2, -1, 0, 1, 2])
+antenna_distance = 0.35
 
 #Linear Setup 2
 # y = np.array([0, 0, 0])
@@ -100,16 +100,16 @@ gain = 40
 # antenna_distance = 0.35
 
 # Circular setup
-ant0 = [1,    0]
-ant1 = [0.3090,    0.9511]
-ant2 = [-0.8090,    0.5878]
-ant3 = [-0.8090,   -0.5878]
-ant4 = [0.3090,   -0.9511]
-y = np.array([ant0[1], ant1[1], ant2[1], ant3[1], ant4[1]])
-x = np.array([ant0[0], ant1[0], ant2[0], ant3[0], ant4[0]])
-antenna_distance =  0.35
-antenna_distance = antenna_distance / 2.0 / np.sin(36.0*np.pi/180.0)
+# ant0 = [1,    0]
+# ant1 = [0.3090,    0.9511]
+# ant2 = [-0.8090,    0.5878]
+# ant3 = [-0.8090,   -0.5878]
+# ant4 = [0.3090,   -0.9511]
+# y = np.array([ant0[1], ant1[1], ant2[1], ant3[1], ant4[1]])
+# x = np.array([ant0[0], ant1[0], ant2[0], ant3[0], ant4[0]])
+# antenna_distance =  0.35
+# antenna_distance = antenna_distance / 2.0 / np.sin(36.0*np.pi/180.0)
 
-waraps = True
+waraps = False
 
-kraken_config(center_freq, num_samples, sample_rate, antenna_distance, x, y, 'UCA', 'FIR', waraps)
+kraken_config(center_freq, num_samples, sample_rate, antenna_distance, x, y, 'ULA', 'FIR', waraps)
