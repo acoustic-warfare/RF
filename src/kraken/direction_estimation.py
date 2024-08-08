@@ -292,7 +292,7 @@ def spatial_smoothing(M, iq_samples ,P, direction):
     return np.ascontiguousarray(Rss)
 
 @njit(fastmath=True, cache=True)
-def infer_signal_dimension(correlation_matrix, threshold_ratio=0.2):
+def infer_signal_dimension(correlation_matrix, num_antennas, threshold_ratio=0.2):
     """
     Infers the signal dimension (number of signals) based on the eigenvalues of the correlation matrix.
 
@@ -300,13 +300,16 @@ def infer_signal_dimension(correlation_matrix, threshold_ratio=0.2):
     -----------
     correlation_matrix : ndarray
         The input correlation matrix.
+    num_antennas : int
+        The number of antennas in the array. 
+        The theoretical max number of signals is num_antennas - 1
     threshold_ratio : float, optional
         Ratio of the threshold for determining signal dimension.
 
     Returns:
     --------
     signal_dimension : int
-        The inferred number of signals, capped at a maximum of 4.
+        The inferred number of signals, capped at a maximum of num_antennas - 1
     """
     # Compute eigenvalues
     eigenvalues = lin.eigvals(correlation_matrix)
@@ -323,4 +326,4 @@ def infer_signal_dimension(correlation_matrix, threshold_ratio=0.2):
     # Find the number of eigenvalues greater than the threshold
     signal_dimension = np.sum(sorted_magnitudes > threshold)
     
-    return min(signal_dimension,4)
+    return min(signal_dimension, num_antennas-1)

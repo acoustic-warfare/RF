@@ -239,7 +239,7 @@ class KrakenReceiver():
             Array of estimated DOA angles in degrees.
         """
         spatial_corr_matrix = de.spatial_correlation_matrix(self.iq_samples, self.num_samples)
-        sig_dim = de.infer_signal_dimension(spatial_corr_matrix)
+        sig_dim = de.infer_signal_dimension(spatial_corr_matrix, self.num_antennas)
         doa = de.DOA_MUSIC(spatial_corr_matrix, self.scanning_vectors, sig_dim)
 
         return doa
