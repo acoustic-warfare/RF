@@ -7,6 +7,8 @@ import scipy.signal as signal
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
+"""Performin Direction finding with PlutoSDR by using interferometry"""
+
 
 def butter_bandpass(lowcut, highcut, fs, order=5):
     return signal.butter(order, [lowcut, highcut], fs=fs, btype='band')
@@ -49,9 +51,6 @@ def update(frame):
     ch0_samples= samples[0]
     ch1_samples = samples[1]
 
-    # ch0_samples = butter_bandpass_filter(ch0_samples_unfiltered, 1, 2, sdr.rx_lo)
-    # ch1_samples = butter_bandpass_filter(ch1_samples_unfiltered, 1, 2, sdr.rx_lo)
-
 
     freqs = np.fft.fftfreq(5000, d=1/samp_rate)
 
@@ -61,34 +60,18 @@ def update(frame):
     abs_fft_ch0_samples = np.abs(fft_ch0_samples)
     abs_fft_ch1_samples = np.abs(fft_ch1_samples)
     
-    # fft_ch0_samples[abs_fft_ch0_samples < 30] = 0
-    # fft_ch1_samples[abs_fft_ch1_samples < 30] = 0
+
     max_index_ch0 = np.argmax(abs_fft_ch0_samples)
     fft_ch0_samples[abs_fft_ch0_samples != max(abs_fft_ch0_samples)] = 0
     fft_ch0_max = fft_ch0_samples[max_index_ch0]
-    # fft_ch1_samples[abs_fft_ch1_samples != max(abs_fft_ch1_samples)] = 0
-    
-    # Set all elements to zero except for the one at max index
-    #fft_ch1_samples_max = np.zeros_like(fft_ch1_samples)
-    
-    #fft_ch1_samples_max[max_index_ch0] = fft_ch1_samples[max_index_ch0]
+
 
     fft_ch1_max = fft_ch1_samples[max_index_ch0]
 
     ch0_angle = np.angle(fft_ch0_max, deg=False)
-    # if (ch0_angle < 0):
-    #     ch0_angle = 2*np.pi + ch0_angle
-    ch1_angle = np.angle(fft_ch1_max, deg=False)
-    # if (ch1_angle < 0):
-    #     ch1_angle = 2*np.pi + ch1_angle
 
-    #if (ch0_angle > ch1_angle):
-    #    phase_difference = ch0_angle - ch1_angle
-    #else:
-    #    phase_difference = ch1_angle - ch0_angle
-#
-    #if (phase_difference > np.pi):
-    #    phase_difference = np.pi - phase_difference
+    ch1_angle = np.angle(fft_ch1_max, deg=False)
+
 
     phase_difference = ch1_angle - ch0_angle
 
