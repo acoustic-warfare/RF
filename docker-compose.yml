@@ -42,5 +42,5 @@ services:
         # - ./data:/app/data
         # - ./:/app
       env_file:
-        - ./src/plutosdr/WARA-PS_L2_Pluto_Agent/.env
+        - ./src/plutosdr/.env
       privileged: true
