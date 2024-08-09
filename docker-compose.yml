@@ -29,7 +29,7 @@ services:
       
   pluto-app:
       build:
-        context: ./src/plutosdr/WARA-PS_L2_Pluto_Agent
+        context: ./src/plutosdr
         dockerfile: Dockerfile.pluto
       ports:
         - "1935:1935"

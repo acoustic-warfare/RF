@@ -50,7 +50,7 @@ RUN apt-get update && apt-get install -y \
 
 
 # Set the working directory in the container
-WORKDIR /src/plutosdr/WARA-PS_L2_Pluto_Agent
+WORKDIR /src/plutosdr
 
 # Copy the environment file into the container
 COPY environment.yml .
