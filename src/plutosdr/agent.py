@@ -108,9 +108,7 @@ class Agent():
                 if self.is_task_supported(task) and not self.logic.task_running:
                     # if task["name"] == "move-to":
                     #     # If we want to frequency using the WARA PS 2022 Arena we do not have the change-frequency 
-                    #     # implemnted and therefore we "cheat" by using move-to instead.
-                    #     # Therefore we use the move-to task, where the altitude represents the frequency in MHz
-                    #     #  and then we move the agent mostly for funsies and for the task to finish correctly. :))
+                    #     # implemnted and therefore we "cheat" by using move-to instead. The altitude represents the frequency in MHz
                     #     self.logic.task_running = True
                     #     self.logic.task_running_uuid = task_uuid
                     #     msg_res_json["response"] = "running"
