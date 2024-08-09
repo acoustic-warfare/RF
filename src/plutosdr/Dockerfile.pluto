@@ -74,7 +74,7 @@ RUN git clone https://github.com/acoustic-warfare/RtmpStreamer.git $RTMP_STREAME
    ninja -C build/ && \
    ninja -C build install
 
-WORKDIR /src/plutosdr/WARA-PS_L2_Pluto_Agent
+WORKDIR /src/plutosdr/
 # Copy the rest of the application code into the container
 COPY . .
 
